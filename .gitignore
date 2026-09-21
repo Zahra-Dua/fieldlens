@@ -1,0 +1,42 @@
+﻿# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Node.js / TypeScript
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ML artifacts
+apps/ml/data/
+*.h5
+*.tflite
+*.pt
+*.onnx
+
+# Flutter / Dart
+apps/app/.dart_tool/
+apps/app/build/
+apps/app/.pub-cache/
+apps/app/ios/Pods/
+apps/app/android/.gradle/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
