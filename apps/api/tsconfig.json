@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", //ECMAScript 2022 (Modern JavaScript)
+    "module": "commonjs", //Node.js's standard CommonJS format...import(require) and export(module.exports) syntax
+    "lib": ["ES2022"], //already built in JS features in ES2022, like Promise.any(), Object.hasOwn(), etc.
+    "outDir": "./dist", //after compilation, the output files will be placed in the "dist" directory
+    "rootDir": "./src", //all ts code files will be in src directory, and the compiler will look for ts files in this directory
+
+    // safety rules 
+    "strict": true, //enable all strict type checking options
+    "noUncheckedIndexedAccess": true, //add undefined to types of indexed accesses
+    "noImplicitOverride": true, //require explicit override keyword for overridden members
+    "esModuleInterop": true, //enable interoperability between CommonJS and ES6 modules
+    "skipLibCheck": true, //skip type checking of declaration files
+    "forceConsistentCasingInFileNames": true, //enforce consistent casing in file names
+    "resolveJsonModule": true,
+
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"], 
+  "exclude": ["node_modules", "dist"]
+}

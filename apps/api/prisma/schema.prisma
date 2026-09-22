@@ -1,0 +1,204 @@
+// FieldLens — Prisma schema
+// Based on the Day 1 schema sketch (docs/schema-sketch.md)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  FIELD_WORKER
+  ADMIN
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+enum InspectionStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+}
+
+enum WasteClass {
+  PLASTIC
+  GLASS
+  METAL
+  PAPER
+  ORGANIC
+}
+
+enum InferenceSource {
+  ON_DEVICE
+  CLOUD
+}
+
+enum ModelFormat {
+  TFLITE
+  ONNX
+}
+
+// Note: values here follow Day 13 of the program doc (draft/staged/production).
+// See ADR (to be written on Day 13) for why this differs from the DRAFT/ACTIVE/RETIRED
+// naming used in earlier informal notes.
+enum ModelStatus {
+  DRAFT
+  STAGED
+  PRODUCTION
+}
+
+// ─────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(FIELD_WORKER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  devices       Device[]
+  inspections   Inspection[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Device {
+  id          String         @id @default(uuid())
+  userId      String
+  deviceUuid  String         @unique
+  name        String?
+  platform    DevicePlatform
+  appVersion  String?
+  osVersion   String?
+  lastSeenAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inspections  Inspection[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+model Inspection {
+  // Client-generated UUID — the Flutter app creates this ID while offline,
+  // so the sync endpoint can do an idempotent upsert instead of creating
+  // duplicates on retry. See Day 4's "most important API decision".
+  id           String            @id @default(uuid())
+  userId       String
+  deviceId     String
+  status       InspectionStatus  @default(PENDING)
+  latitude     Decimal?
+  longitude    Decimal?
+  capturedAt   DateTime
+  syncedAt     DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  device Device @relation(fields: [deviceId], references: [id])
+
+  images      InspectionImage[]
+  predictions Prediction[]
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([capturedAt])
+  @@map("inspections")
+}
+
+model InspectionImage {
+  id               String   @id @default(uuid())
+  inspectionId     String
+  // Path to the file in MinIO/S3 — the image bytes themselves are NEVER
+  // stored in Postgres.
+  objectKey        String
+  originalFileName String?
+  mimeType         String
+  fileSize         Int
+  width            Int?
+  height           Int?
+  checksum         String?
+  createdAt        DateTime @default(now())
+
+  inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  @@index([inspectionId])
+  @@map("inspection_images")
+}
+
+model Prediction {
+  id               String           @id @default(uuid())
+  inspectionId     String
+  modelVersionId   String?
+  predictedClass   WasteClass
+  confidence       Decimal
+  inferenceSource  InferenceSource
+  inferenceTimeMs  Int?
+  isAccepted       Boolean?
+  correctedClass   WasteClass?
+  createdAt        DateTime         @default(now())
+
+  inspection   Inspection    @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  modelVersion ModelVersion? @relation(fields: [modelVersionId], references: [id])
+
+  @@index([inspectionId])
+  @@index([modelVersionId])
+  @@map("predictions")
+}
+
+model ModelVersion {
+  id          String      @id @default(uuid())
+  version     String
+  name        String
+  format      ModelFormat
+  platform    DevicePlatform
+  // Path to the .tflite file in MinIO/S3.
+  fileKey     String
+  sha256      String
+  sizeBytes   Int
+  status      ModelStatus @default(DRAFT)
+  accuracy    Decimal?
+  createdAt   DateTime    @default(now())
+  releasedAt  DateTime?
+
+  predictions Prediction[]
+
+  @@unique([name, version])
+  @@map("model_versions")
+}
