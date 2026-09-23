@@ -1,0 +1,79 @@
+### FieldLens API — Auth flow demo
+### Day 3 acceptance criteria: register → login → protected route →
+### refresh → revoke, demonstrable in this file.
+###
+### Requires the "REST Client" VS Code extension (by Huachao Mao).
+### Server must be running first: npm run dev
+###
+### Click the "Send Request" link that appears above each block below,
+### in order, top to bottom. Tokens are captured automatically from each
+### response and reused in later requests — no manual copy-paste needed.
+
+@baseUrl = http://127.0.0.1:3000
+
+### 1. Register a new user
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Demo User",
+  "email": "demo@fieldlens.dev",
+  "password": "password123"
+}
+
+### 2. Login as the field worker — capture tokens for later steps
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@fieldlens.dev",
+  "password": "password123"
+}
+
+### 3. Access a protected route with the access token from step 2
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{login.response.body.accessToken}}
+
+### 4. Admin-only route with a FIELD_WORKER token — expect 403
+GET {{baseUrl}}/auth/admin-test
+Authorization: Bearer {{login.response.body.accessToken}}
+
+### 5. Login as the seeded admin — capture a separate admin token
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@fieldlens.dev",
+  "password": "Password123!"
+}
+
+### 6. Admin-only route with an ADMIN token — expect 200
+GET {{baseUrl}}/auth/admin-test
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
+
+### 7. Refresh — exchange the field worker's refresh token for a new pair
+# @name refreshed
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.refreshToken}}"
+}
+
+### 8. Logout — revoke the NEW refresh token from step 7
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshed.response.body.refreshToken}}"
+}
+
+### 9. Confirm revocation — reusing the same refresh token should now fail
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshed.response.body.refreshToken}}"
+}
