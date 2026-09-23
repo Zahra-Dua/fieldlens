@@ -16,14 +16,20 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.2",
     "prisma": "^6.19.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@fastify/rate-limit": "^11.2.0",
     "@prisma/client": "^6.19.3",
     "argon2": "^0.45.1",
-    "dotenv": "^18.0.2"
+    "dotenv": "^18.0.2",
+    "fastify": "^5.12.5",
+    "fastify-plugin": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.5"
   }
 }
