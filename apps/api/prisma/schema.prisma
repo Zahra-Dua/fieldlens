@@ -103,6 +103,10 @@ model Device {
   platform    DevicePlatform
   appVersion  String?
   osVersion   String?
+  // What ML model version this device last reported running. Simple
+  // string (not a relation to ModelVersion) — we just need to display it
+  // on the Day 18 device fleet dashboard, not join against it.
+  currentModelVersion String?
   lastSeenAt  DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
