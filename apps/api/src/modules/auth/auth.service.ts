@@ -10,6 +10,7 @@ import {
   verifyRefreshToken,
   type UserRole,
 } from "../../shared/utils/jwt";
+import { AppError } from "../../shared/errors/AppError";
 import type { RegisterInput, LoginInput } from "./auth.schemas";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 7; // must match the "7d" in jwt.ts
@@ -22,7 +23,7 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new Error("EMAIL_ALREADY_REGISTERED");
+      throw new AppError("EMAIL_ALREADY_REGISTERED", "This email is already registered", 409);
     }
 
     const passwordHash = await argon2.hash(input.password);
@@ -49,7 +50,7 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
-      throw new Error("INVALID_CREDENTIALS");
+      throw new AppError("INVALID_CREDENTIALS", "Email or password is incorrect", 401);
     }
 
     const passwordValid = await argon2.verify(
@@ -58,7 +59,7 @@ export class AuthService {
     );
 
     if (!passwordValid) {
-      throw new Error("INVALID_CREDENTIALS");
+      throw new AppError("INVALID_CREDENTIALS", "Email or password is incorrect", 401);
     }
 
     return this.issueTokens(user.id, user.role as UserRole);
@@ -102,7 +103,7 @@ export class AuthService {
     }
 
     if (!matchedTokenId) {
-      throw new Error("INVALID_REFRESH_TOKEN");
+      throw new AppError("INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired", 401);
     }
 
     // Rotate — revoke the used refresh token and issue a new pair.
@@ -115,7 +116,7 @@ export class AuthService {
     // refresh token alone doesn't carry it (kept minimal on purpose).
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) {
-      throw new Error("USER_NOT_FOUND");
+      throw new AppError("USER_NOT_FOUND", "User not found", 404);
     }
 
     return this.issueTokens(user.id, user.role as UserRole);
@@ -125,7 +126,7 @@ export class AuthService {
   async getById(userId: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw new Error("USER_NOT_FOUND");
+      throw new AppError("USER_NOT_FOUND", "User not found", 404);
     }
     return user;
   }
