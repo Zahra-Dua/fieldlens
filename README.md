@@ -1,125 +1,129 @@
 # FieldLens
 
-FieldLens is an **offline-first, on-device ML inspection platform**.
+FieldLens is an offline-first inspection platform for waste sorting. Field
+workers capture images on-device, classify them locally, and sync results back to
+a shared API when connectivity is available.
 
-A field worker points a phone at an object, the phone classifies it **on the
-device with no network call**, the result is saved locally, and it syncs to a
-server automatically once connectivity returns. A web dashboard aggregates
-results and lets an admin push new model versions out to devices.
+## Project goals
 
-**Chosen classification domain: Waste Sorting**
-Classes: `plastic` · `glass` · `metal` · `paper` · `organic`
+- offline-first mobile capture
+- deterministic sync with retry-safe idempotency
+- Fastify API with PostgreSQL persistence
+- MinIO-backed image storage
+- admin-facing inspection dashboard and model lifecycle workflow
 
-This repository is the capstone project for the FieldLens CS Internship
-Program (4 weeks / 20 working days).
+## Tech stack
 
----
-
-## Why this project exists
-
-- **On-device inference** — classification happens on the phone, not the cloud.
-- **Offline-first sync** — the app is fully usable with the network off; data
-  reconciles with the server once connectivity returns.
-- **A polyglot backend** — a Node.js product API and a Python (FastAPI) ML
-  service, talking to each other.
-- **Two frontends, one API** — a Flutter mobile app and a React admin
-  dashboard both consume the same backend.
-- **Model lifecycle** — training, quantizing, versioning, and distributing a
-  model to devices over the air.
-- **Containerized delivery** — the whole system comes up with one command on
-  a machine that isn't the developer's own.
-
----
-
-## Architecture
-
-```text
-+-----------------------------+
-|   fieldlens-web (React)     |
-|   Vite / TS / TanStack      |
-|   Admin dashboard           |
-+--------------+--------------+
-               | HTTPS + JSON
-               v
-+----------------------+        +-----------------------------+
-|   fieldlens-app       | JSON  |   fieldlens-api (Node.js)    |
-|   Flutter              |<---->|   Express/Fastify + Prisma   |
-|                        |      |   JWT auth / REST            |
-|  +----------------+    |      +------+---------------+------+
-|  |  TFLite model   |    |            |               |
-|  |  (on device)    |    |            v               v
-|  +----------------+    |      +-------------+  +--------------+
-|  +----------------+    |      |  Postgres   |  |  MinIO / S3  |
-|  | SQLite outbox   |    |      |             |  |  (images)    |
-|  +----------------+    |      +-------------+  +--------------+
-+----------------------+              |
-      ^                               | internal HTTP
-      | model download (OTA)          v
-      |                       +-----------------------------+
-      +---------------------->|   fieldlens-ml (FastAPI)     |
-                               |   model registry / convert   |
-                               |   cloud-fallback inference   |
-                               +-----------------------------+
-```
+- API: Node.js + TypeScript + Fastify
+- Database: PostgreSQL + Prisma
+- Storage: MinIO
+- Auth: JWT + refresh-token rotation
+- Tests: Vitest + Supertest
+- Docs: OpenAPI / Swagger UI
 
 ## Repository layout
 
 ```text
 fieldlens/
-├── README.md
+├── apps/
+│   ├── api/
+│   ├── app/
+│   ├── ml/
+│   └── web/
+├── docs/
+│   └── adr/
 ├── docker-compose.yml
 ├── .env.example
-├── docs/
-│   ├── adr/              # Architecture Decision Records
-│   ├── api.md
-│   └── demo.md
-├── spikes/                # Research spike example projects (graded)
-│   ├── 01-node-frameworks/
-│   ├── 02-ondevice-runtimes/
-│   ├── 03-quantization/
-│   └── 04-supabase-comparison/
-├── apps/
-│   ├── api/                # Node.js product API (Express/Fastify + Prisma)
-│   ├── ml/                # FastAPI ML service (model registry + inference)
-│   ├── app/               # Flutter mobile client
-│   └── web/                # React admin dashboard
-└── packages/
-    └── shared-types/       # Shared TypeScript types (optional)
+├── README.md
+└── spikes/
 ```
 
-## Tech stack
+## Local setup
 
-| Layer      | Technology                                             |
-| ---------- | ------------------------------------------------------- |
-| Mobile     | Flutter, Riverpod, go_router, Drift, Dio                |
-| ML (mobile)| TensorFlow Lite / LiteRT, MobileNetV3-Small              |
-| API        | Node.js, TypeScript, Fastify/Express, Prisma, PostgreSQL |
-| ML service | Python, FastAPI, Pydantic v2                              |
-| Web        | React, TypeScript, Vite, TanStack Query                    |
-| Storage    | MinIO / S3-compatible object storage                        |
-| Infra      | Docker, Docker Compose, GitHub Actions                       |
-
-## Getting started
-
-> ⚠️ Setup instructions are placeholders as of Day 1 and will be completed by
-> the end of Segment 1 (Day 5), once the API, database, and Docker Compose
-> stack exist.
+From a clean clone:
 
 ```bash
 git clone <repo-url>
 cd fieldlens
 cp .env.example .env
-docker compose up -d
+
+docker compose up -d db minio
+
+cd apps/api
+npm install
+npx prisma migrate deploy
+npm run test
+npm run build
+npm run dev
 ```
 
-## Documentation
+Then open:
 
-- Architecture Decision Records: [`docs/adr/`](docs/adr)
-- Research spikes: [`spikes/`](spikes)
-- API reference: `docs/api.md` (added in Segment 1)
-- Demo walkthrough: `docs/demo.md` (added in Segment 4)
+- API: http://localhost:3000/health
+- Swagger UI: http://localhost:3000/docs
+
+## Environment variables
+
+The committed template is in [.env.example](.env.example). Copy it to `.env` and
+fill in local values before running Prisma or the app.
+
+Required values include:
+
+```env
+POSTGRES_USER=fieldlens
+POSTGRES_PASSWORD=change_me_locally
+POSTGRES_DB=fieldlens
+DATABASE_URL=postgresql://fieldlens:change_me_locally@localhost:5432/fieldlens
+MINIO_ROOT_USER=fieldlens_minio
+MINIO_ROOT_PASSWORD=change_me_locally_minio
+```
+
+## API documentation
+
+The live Swagger docs are served at:
+
+```text
+http://localhost:3000/docs
+```
+
+The JSON schema is available at:
+
+```text
+http://localhost:3000/docs/json
+```
+
+> The contract is considered failed if the docs describe an endpoint that the running API does not actually implement.
+
+## Core API routes
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `GET /auth/me`
+- `POST /devices/register`
+- `POST /inspections`
+- `GET /inspections`
+- `GET /inspections/:id`
+- `DELETE /inspections/:id`
+- `POST /inspections/:id/images`
+- `GET /health`
+
+## Testing
+
+Run from the API folder:
+
+```bash
+npm run test
+npm run build
+npm run lint
+```
+
+## Documentation and ADRs
+
+- Architecture Decision Records: [docs/adr](docs/adr)
+- Design notes and project rationale are tracked there.
 
 ## License
 
-This is a personal capstone/learning project. Dataset licensing is documented
-separately in [`docs/adr/0002-domain-and-dataset.md`](docs/adr/0002-domain-and-dataset.md).
+This project is for capstone learning and internal review.
