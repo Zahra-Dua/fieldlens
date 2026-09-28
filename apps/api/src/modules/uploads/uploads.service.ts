@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../database/prisma";
 import { AppError } from "../../shared/errors/AppError";
 import { uploadToMinio } from "../../shared/storage/minio";
+import type { MultipartFile } from "@fastify/multipart";
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
@@ -11,7 +12,7 @@ const ALLOWED_MIME_TYPES = new Set([
 ]);
 
 export class UploadsService {
-  async uploadInspectionImage(inspectionId: string, userId: string, userRole: "ADMIN" | "FIELD_WORKER", file: any) {
+  async uploadInspectionImage(inspectionId: string, userId: string, userRole: "ADMIN" | "FIELD_WORKER", file: MultipartFile) {
     const inspection = await prisma.inspection.findUnique({
       where: { id: inspectionId },
       select: { id: true, userId: true },

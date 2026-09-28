@@ -4,6 +4,7 @@
 // not worth fighting for this project. Two secrets, four plain functions,
 // fully typed. See ADR 0004.
 
+import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 
 export type UserRole = "ADMIN" | "FIELD_WORKER";
@@ -30,9 +31,13 @@ export function signAccessToken(payload: AccessTokenPayload): string {
 export function signRefreshToken(payload: RefreshTokenPayload): string {
   return jwt.sign(payload, getSecret("JWT_REFRESH_SECRET"), {
     expiresIn: "7d",
+    // A unique ID per token. Without it, two refresh tokens issued for
+    // the same user within the same second are byte-identical, which
+    // breaks rotation: the "revoked" token would still match the new
+    // active record's hash.
+    jwtid: randomUUID(),
   });
 }
-
 export function verifyAccessToken(token: string): AccessTokenPayload {
   return jwt.verify(token, getSecret("JWT_ACCESS_SECRET")) as AccessTokenPayload;
 }
