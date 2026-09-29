@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>FieldLens needs the camera to photograph items for inspection.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FieldLens can record where an inspection was taken. This is optional.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
