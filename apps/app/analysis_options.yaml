@@ -9,3 +9,10 @@ analyzer:
     strict-casts: true
     strict-inference: true
     strict-raw-types: true
+
+linter:
+  rules:
+    # False positive on this Dart/analyzer version: flags normal
+    # constructor declarations (not just call sites) as if the class
+    # name were unnecessary, which Dart syntax doesn't allow removing.
+    unnecessary_type_name_in_constructor: false
