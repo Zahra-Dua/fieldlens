@@ -2,20 +2,19 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:fieldlens_app/core/providers/providers.dart';
+import 'package:fieldlens_app/core/router/app_routes.dart';
 import 'package:fieldlens_app/features/capture/domain/inspection_metadata.dart';
 import 'package:fieldlens_app/features/capture/domain/permission_gateway.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 /// Shows a just-captured photo. Retake discards it; "Use photo" compresses
 /// it and attaches metadata. Saving to the local DB is wired on Day 8 —
 /// today this screen only proves compression and metadata capture work.
 class CapturedPhotoScreen extends ConsumerStatefulWidget {
   /// Creates the screen for the photo at [imagePath].
-  // The class name is required here even though the lint below flags it —
-  // this is a constructor declaration, not a call site, and Dart gives no
-  // way to name a constructor without repeating the class name.
-  // ignore: unnecessary_type_name_in_constructor
   const CapturedPhotoScreen({required this.imagePath, super.key});
 
   /// Path to the raw, uncompressed photo.
@@ -37,38 +36,22 @@ class _CapturedPhotoScreenState extends ConsumerState<CapturedPhotoScreen> {
         .compress(widget.imagePath);
     final metadata = await _buildMetadata();
 
+    await ref
+        .read(inspectionDaoProvider)
+        .createInspection(
+          id: const Uuid().v4(),
+          imagePath: compressedPath,
+          capturedAt: metadata.capturedAt,
+          deviceId: metadata.deviceId,
+          latitude: metadata.latitude,
+          longitude: metadata.longitude,
+        );
+
     if (!mounted) return;
     setState(() => _saving = false);
 
-    final compressedSize = await File(compressedPath).length();
-    // Day 8 replaces this with a real save to the outbox.
     if (!context.mounted) return;
-    await showDialog<void>(
-      // Guarded immediately above with context.mounted; the analyzer
-      // still flags this because of the earlier State.mounted check
-      // further up, but the actual context use here is correctly guarded.
-      // ignore: use_build_context_synchronously
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Captured'),
-        content: Text(
-          'Compressed size: ${(compressedSize / 1024).toStringAsFixed(0)} KB\n'
-          'Captured at: ${metadata.capturedAt}\n'
-          'Device: ${metadata.deviceId}\n'
-          'Location: ${metadata.latitude ?? "unavailable"}, '
-          '${metadata.longitude ?? "unavailable"}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
+    context.go(AppRoutes.history);
   }
 
   Future<InspectionMetadata> _buildMetadata() async {
