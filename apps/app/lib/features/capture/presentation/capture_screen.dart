@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:camera/camera.dart' as pkg;
+import 'package:fieldlens_app/core/debug/debug_auth_check_button.dart';
 import 'package:fieldlens_app/core/router/app_routes.dart';
 import 'package:fieldlens_app/features/auth/presentation/auth_notifier.dart';
 import 'package:fieldlens_app/features/capture/presentation/camera_controller_notifier.dart';
@@ -75,6 +76,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
             icon: const Icon(Icons.history),
             onPressed: () => context.go(AppRoutes.history),
           ),
+          const DebugAuthCheckButton(),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () =>

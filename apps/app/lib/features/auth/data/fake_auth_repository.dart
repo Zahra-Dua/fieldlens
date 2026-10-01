@@ -1,9 +1,9 @@
 import 'package:fieldlens_app/features/auth/domain/auth_repository.dart';
 
-/// In-memory stand-in until the real API repository arrives on Day 9.
+/// In-memory stand-in, used only in tests now that ApiAuthRepository exists.
 class FakeAuthRepository implements AuthRepository {
   @override
-  Future<void> signIn() async {}
+  Future<void> signIn(String email, String password) async {}
 
   @override
   Future<void> signOut() async {}
