@@ -35,6 +35,8 @@ apps/app/build/
 apps/app/.pub-cache/
 apps/app/ios/Pods/
 apps/app/android/.gradle/
+apps/app/env/dev.json
+apps/app/env/emulator.json
 
 # OS / Editor
 .DS_Store
