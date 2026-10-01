@@ -1,7 +1,10 @@
 import 'package:fieldlens_app/core/database/app_database.dart';
+import 'package:fieldlens_app/core/network/api_client.dart';
+import 'package:fieldlens_app/core/network/token_storage.dart';
 import 'package:fieldlens_app/core/providers/app_config.dart';
-import 'package:fieldlens_app/features/auth/data/fake_auth_repository.dart';
+import 'package:fieldlens_app/features/auth/data/api_auth_repository.dart';
 import 'package:fieldlens_app/features/auth/domain/auth_repository.dart';
+import 'package:fieldlens_app/features/auth/presentation/auth_notifier.dart';
 import 'package:fieldlens_app/features/capture/data/flutter_image_compressor.dart';
 import 'package:fieldlens_app/features/capture/data/platform_metadata_gateway.dart';
 import 'package:fieldlens_app/features/capture/data/platform_permission_gateway.dart';
@@ -16,9 +19,25 @@ final appConfigProvider = Provider<AppConfig>(
   (ref) => AppConfig.fromEnvironment(),
 );
 
-/// The auth repository. Swap the implementation here, or override it in tests.
+/// Reads/writes tokens in secure storage.
+final tokenStorageProvider = Provider<TokenStorage>(
+  (ref) => const TokenStorage(),
+);
+
+/// The API client, which handles auth and network errors.
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final config = ref.watch(appConfigProvider);
+  return ApiClient(
+    baseUrl: config.apiBaseUrl,
+    tokenStorage: ref.watch(tokenStorageProvider),
+    onSessionExpired: () =>
+        ref.read(authProvider.notifier).handleSessionExpired(),
+  );
+});
+
+/// The auth repository, backed by the real API.
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => FakeAuthRepository(),
+  (ref) => ApiAuthRepository(ref.watch(apiClientProvider)),
 );
 
 /// OS permission access. Override with a fake in tests.
