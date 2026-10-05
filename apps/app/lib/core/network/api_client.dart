@@ -68,6 +68,9 @@ class ApiClient {
     ErrorInterceptorHandler handler,
   ) async {
     final request = error.requestOptions;
+    // A multipart body can only be sent once, so the retry needs a copy.
+    final body = request.data;
+    if (body is FormData) request.data = body.clone();
     final canRefresh =
         error.response?.statusCode == 401 &&
         !_noRefreshPaths.contains(request.path) &&
@@ -147,8 +150,14 @@ class ApiClient {
       case DioExceptionType.badResponse:
         final status = error.response?.statusCode;
         if (status == 401) return const SessionExpiredException();
+        if (status != null && _isTemporaryStatus(status)) {
+          return const ServerUnavailableException();
+        }
         if (status != null && status >= 400 && status < 500) {
-          return ApiRejectedException(_extractMessage(error.response?.data));
+          return ApiRejectedException(
+            _extractMessage(error.response?.data),
+            statusCode: status,
+          );
         }
         return const UnknownNetworkException();
       case DioExceptionType.cancel:
@@ -158,6 +167,10 @@ class ApiClient {
         return const UnknownNetworkException();
     }
   }
+
+  // Retrying later can fix these, unlike the rest of the 4xx range.
+  static bool _isTemporaryStatus(int status) =>
+      status >= 500 || status == 408 || status == 429;
 
   static String _extractMessage(Object? body) {
     if (body is Map<String, dynamic>) {
