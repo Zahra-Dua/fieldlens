@@ -57,6 +57,19 @@ class OutboxEntries extends Table {
 
   /// Queue state, stored as text (see [OutboxStatus]).
   TextColumn get status => text().withDefault(const Constant('pending'))();
+
+  /// True once the photo has been uploaded, so a retry does not upload it
+  /// again. Added in schema v3.
+  BoolColumn get imageUploaded =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Earliest time the next attempt may run. Null means as soon as
+  /// possible. Stored in the database so the backoff survives a restart.
+  DateTimeColumn get nextAttemptAt => dateTime().nullable()();
+
+  /// Message from the last failed attempt, shown to the user. Added in
+  /// schema v3.
+  TextColumn get lastError => text().nullable()();
 }
 
 /// Values stored in [Inspections.syncStatus]. Kept as plain strings in the
@@ -87,4 +100,29 @@ abstract final class OutboxStatus {
   /// Failed and needs manual retry (Day 10 requirement: a 400-class
   /// failure must not be retried forever).
   static const failed = 'failed';
+}
+
+/// Small key-value store for sync state, such as the last-synced
+/// watermark and the server-issued device id. Added in schema v3.
+class SyncMetaEntries extends Table {
+  /// Name of the stored value, see [SyncMetaKeys].
+  TextColumn get metaKey => text()();
+
+  /// The stored value.
+  TextColumn get metaValue => text()();
+
+  @override
+  Set<Column> get primaryKey => {metaKey};
+}
+
+/// Keys used in [SyncMetaEntries].
+abstract final class SyncMetaKeys {
+  /// The id the server assigned this device at registration.
+  static const serverDeviceId = 'server_device_id';
+
+  /// Random id this install uses to register itself with the server.
+  static const deviceUuid = 'device_uuid';
+
+  /// ISO-8601 server time of the last successful push.
+  static const lastPushAt = 'last_push_at';
 }

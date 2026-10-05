@@ -5,6 +5,7 @@ import 'package:fieldlens_app/core/providers/providers.dart';
 import 'package:fieldlens_app/core/router/app_routes.dart';
 import 'package:fieldlens_app/features/capture/domain/inspection_metadata.dart';
 import 'package:fieldlens_app/features/capture/domain/permission_gateway.dart';
+import 'package:fieldlens_app/features/sync/presentation/sync_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,6 +47,10 @@ class _CapturedPhotoScreenState extends ConsumerState<CapturedPhotoScreen> {
           latitude: metadata.latitude,
           longitude: metadata.longitude,
         );
+
+    // The inspection is already in the outbox, so a sync is worth starting
+    // whether or not this screen is still showing.
+    unawaited(ref.read(syncControllerProvider.notifier).syncNow());
 
     if (!mounted) return;
     setState(() => _saving = false);

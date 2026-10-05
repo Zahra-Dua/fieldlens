@@ -697,6 +697,44 @@ class $OutboxEntriesTable extends OutboxEntries
     requiredDuringInsert: false,
     defaultValue: const Constant('pending'),
   );
+  static const VerificationMeta _imageUploadedMeta = const VerificationMeta(
+    'imageUploaded',
+  );
+  @override
+  late final GeneratedColumn<bool> imageUploaded = GeneratedColumn<bool>(
+    'image_uploaded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("image_uploaded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextAttemptAt =
+      GeneratedColumn<DateTime>(
+        'next_attempt_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -704,6 +742,9 @@ class $OutboxEntriesTable extends OutboxEntries
     attemptCount,
     lastAttemptAt,
     status,
+    imageUploaded,
+    nextAttemptAt,
+    lastError,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -755,6 +796,30 @@ class $OutboxEntriesTable extends OutboxEntries
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
       );
     }
+    if (data.containsKey('image_uploaded')) {
+      context.handle(
+        _imageUploadedMeta,
+        imageUploaded.isAcceptableOrUnknown(
+          data['image_uploaded']!,
+          _imageUploadedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
     return context;
   }
 
@@ -784,6 +849,18 @@ class $OutboxEntriesTable extends OutboxEntries
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      imageUploaded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}image_uploaded'],
+      )!,
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_attempt_at'],
+      ),
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
     );
   }
 
@@ -809,12 +886,27 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
 
   /// Queue state, stored as text (see [OutboxStatus]).
   final String status;
+
+  /// True once the photo has been uploaded, so a retry does not upload it
+  /// again. Added in schema v3.
+  final bool imageUploaded;
+
+  /// Earliest time the next attempt may run. Null means as soon as
+  /// possible. Stored in the database so the backoff survives a restart.
+  final DateTime? nextAttemptAt;
+
+  /// Message from the last failed attempt, shown to the user. Added in
+  /// schema v3.
+  final String? lastError;
   const OutboxEntry({
     required this.id,
     required this.inspectionId,
     required this.attemptCount,
     this.lastAttemptAt,
     required this.status,
+    required this.imageUploaded,
+    this.nextAttemptAt,
+    this.lastError,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -826,6 +918,13 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
       map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt);
     }
     map['status'] = Variable<String>(status);
+    map['image_uploaded'] = Variable<bool>(imageUploaded);
+    if (!nullToAbsent || nextAttemptAt != null) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
+    }
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
     return map;
   }
 
@@ -838,6 +937,13 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
           ? const Value.absent()
           : Value(lastAttemptAt),
       status: Value(status),
+      imageUploaded: Value(imageUploaded),
+      nextAttemptAt: nextAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextAttemptAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
     );
   }
 
@@ -852,6 +958,9 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
       attemptCount: serializer.fromJson<int>(json['attemptCount']),
       lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
       status: serializer.fromJson<String>(json['status']),
+      imageUploaded: serializer.fromJson<bool>(json['imageUploaded']),
+      nextAttemptAt: serializer.fromJson<DateTime?>(json['nextAttemptAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
     );
   }
   @override
@@ -863,6 +972,9 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
       'attemptCount': serializer.toJson<int>(attemptCount),
       'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
       'status': serializer.toJson<String>(status),
+      'imageUploaded': serializer.toJson<bool>(imageUploaded),
+      'nextAttemptAt': serializer.toJson<DateTime?>(nextAttemptAt),
+      'lastError': serializer.toJson<String?>(lastError),
     };
   }
 
@@ -872,6 +984,9 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
     int? attemptCount,
     Value<DateTime?> lastAttemptAt = const Value.absent(),
     String? status,
+    bool? imageUploaded,
+    Value<DateTime?> nextAttemptAt = const Value.absent(),
+    Value<String?> lastError = const Value.absent(),
   }) => OutboxEntry(
     id: id ?? this.id,
     inspectionId: inspectionId ?? this.inspectionId,
@@ -880,6 +995,11 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
         ? lastAttemptAt.value
         : this.lastAttemptAt,
     status: status ?? this.status,
+    imageUploaded: imageUploaded ?? this.imageUploaded,
+    nextAttemptAt: nextAttemptAt.present
+        ? nextAttemptAt.value
+        : this.nextAttemptAt,
+    lastError: lastError.present ? lastError.value : this.lastError,
   );
   OutboxEntry copyWithCompanion(OutboxEntriesCompanion data) {
     return OutboxEntry(
@@ -894,6 +1014,13 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
           ? data.lastAttemptAt.value
           : this.lastAttemptAt,
       status: data.status.present ? data.status.value : this.status,
+      imageUploaded: data.imageUploaded.present
+          ? data.imageUploaded.value
+          : this.imageUploaded,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
     );
   }
 
@@ -904,14 +1031,25 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
           ..write('inspectionId: $inspectionId, ')
           ..write('attemptCount: $attemptCount, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
-          ..write('status: $status')
+          ..write('status: $status, ')
+          ..write('imageUploaded: $imageUploaded, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastError: $lastError')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, inspectionId, attemptCount, lastAttemptAt, status);
+  int get hashCode => Object.hash(
+    id,
+    inspectionId,
+    attemptCount,
+    lastAttemptAt,
+    status,
+    imageUploaded,
+    nextAttemptAt,
+    lastError,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -920,7 +1058,10 @@ class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
           other.inspectionId == this.inspectionId &&
           other.attemptCount == this.attemptCount &&
           other.lastAttemptAt == this.lastAttemptAt &&
-          other.status == this.status);
+          other.status == this.status &&
+          other.imageUploaded == this.imageUploaded &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.lastError == this.lastError);
 }
 
 class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
@@ -929,12 +1070,18 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
   final Value<int> attemptCount;
   final Value<DateTime?> lastAttemptAt;
   final Value<String> status;
+  final Value<bool> imageUploaded;
+  final Value<DateTime?> nextAttemptAt;
+  final Value<String?> lastError;
   const OutboxEntriesCompanion({
     this.id = const Value.absent(),
     this.inspectionId = const Value.absent(),
     this.attemptCount = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
     this.status = const Value.absent(),
+    this.imageUploaded = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
   });
   OutboxEntriesCompanion.insert({
     this.id = const Value.absent(),
@@ -942,6 +1089,9 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
     this.attemptCount = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
     this.status = const Value.absent(),
+    this.imageUploaded = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
   }) : inspectionId = Value(inspectionId);
   static Insertable<OutboxEntry> custom({
     Expression<int>? id,
@@ -949,6 +1099,9 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
     Expression<int>? attemptCount,
     Expression<DateTime>? lastAttemptAt,
     Expression<String>? status,
+    Expression<bool>? imageUploaded,
+    Expression<DateTime>? nextAttemptAt,
+    Expression<String>? lastError,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -956,6 +1109,9 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
       if (attemptCount != null) 'attempt_count': attemptCount,
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
       if (status != null) 'status': status,
+      if (imageUploaded != null) 'image_uploaded': imageUploaded,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (lastError != null) 'last_error': lastError,
     });
   }
 
@@ -965,6 +1121,9 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
     Value<int>? attemptCount,
     Value<DateTime?>? lastAttemptAt,
     Value<String>? status,
+    Value<bool>? imageUploaded,
+    Value<DateTime?>? nextAttemptAt,
+    Value<String?>? lastError,
   }) {
     return OutboxEntriesCompanion(
       id: id ?? this.id,
@@ -972,6 +1131,9 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
       attemptCount: attemptCount ?? this.attemptCount,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       status: status ?? this.status,
+      imageUploaded: imageUploaded ?? this.imageUploaded,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      lastError: lastError ?? this.lastError,
     );
   }
 
@@ -993,6 +1155,15 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
+    if (imageUploaded.present) {
+      map['image_uploaded'] = Variable<bool>(imageUploaded.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
     return map;
   }
 
@@ -1003,7 +1174,230 @@ class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
           ..write('inspectionId: $inspectionId, ')
           ..write('attemptCount: $attemptCount, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
-          ..write('status: $status')
+          ..write('status: $status, ')
+          ..write('imageUploaded: $imageUploaded, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SyncMetaEntriesTable extends SyncMetaEntries
+    with TableInfo<$SyncMetaEntriesTable, SyncMetaEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncMetaEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _metaKeyMeta = const VerificationMeta(
+    'metaKey',
+  );
+  @override
+  late final GeneratedColumn<String> metaKey = GeneratedColumn<String>(
+    'meta_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _metaValueMeta = const VerificationMeta(
+    'metaValue',
+  );
+  @override
+  late final GeneratedColumn<String> metaValue = GeneratedColumn<String>(
+    'meta_value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [metaKey, metaValue];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_meta_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncMetaEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('meta_key')) {
+      context.handle(
+        _metaKeyMeta,
+        metaKey.isAcceptableOrUnknown(data['meta_key']!, _metaKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_metaKeyMeta);
+    }
+    if (data.containsKey('meta_value')) {
+      context.handle(
+        _metaValueMeta,
+        metaValue.isAcceptableOrUnknown(data['meta_value']!, _metaValueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_metaValueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {metaKey};
+  @override
+  SyncMetaEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncMetaEntry(
+      metaKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meta_key'],
+      )!,
+      metaValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meta_value'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncMetaEntriesTable createAlias(String alias) {
+    return $SyncMetaEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class SyncMetaEntry extends DataClass implements Insertable<SyncMetaEntry> {
+  /// Name of the stored value, see [SyncMetaKeys].
+  final String metaKey;
+
+  /// The stored value.
+  final String metaValue;
+  const SyncMetaEntry({required this.metaKey, required this.metaValue});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['meta_key'] = Variable<String>(metaKey);
+    map['meta_value'] = Variable<String>(metaValue);
+    return map;
+  }
+
+  SyncMetaEntriesCompanion toCompanion(bool nullToAbsent) {
+    return SyncMetaEntriesCompanion(
+      metaKey: Value(metaKey),
+      metaValue: Value(metaValue),
+    );
+  }
+
+  factory SyncMetaEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncMetaEntry(
+      metaKey: serializer.fromJson<String>(json['metaKey']),
+      metaValue: serializer.fromJson<String>(json['metaValue']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'metaKey': serializer.toJson<String>(metaKey),
+      'metaValue': serializer.toJson<String>(metaValue),
+    };
+  }
+
+  SyncMetaEntry copyWith({String? metaKey, String? metaValue}) => SyncMetaEntry(
+    metaKey: metaKey ?? this.metaKey,
+    metaValue: metaValue ?? this.metaValue,
+  );
+  SyncMetaEntry copyWithCompanion(SyncMetaEntriesCompanion data) {
+    return SyncMetaEntry(
+      metaKey: data.metaKey.present ? data.metaKey.value : this.metaKey,
+      metaValue: data.metaValue.present ? data.metaValue.value : this.metaValue,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncMetaEntry(')
+          ..write('metaKey: $metaKey, ')
+          ..write('metaValue: $metaValue')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(metaKey, metaValue);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncMetaEntry &&
+          other.metaKey == this.metaKey &&
+          other.metaValue == this.metaValue);
+}
+
+class SyncMetaEntriesCompanion extends UpdateCompanion<SyncMetaEntry> {
+  final Value<String> metaKey;
+  final Value<String> metaValue;
+  final Value<int> rowid;
+  const SyncMetaEntriesCompanion({
+    this.metaKey = const Value.absent(),
+    this.metaValue = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncMetaEntriesCompanion.insert({
+    required String metaKey,
+    required String metaValue,
+    this.rowid = const Value.absent(),
+  }) : metaKey = Value(metaKey),
+       metaValue = Value(metaValue);
+  static Insertable<SyncMetaEntry> custom({
+    Expression<String>? metaKey,
+    Expression<String>? metaValue,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (metaKey != null) 'meta_key': metaKey,
+      if (metaValue != null) 'meta_value': metaValue,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncMetaEntriesCompanion copyWith({
+    Value<String>? metaKey,
+    Value<String>? metaValue,
+    Value<int>? rowid,
+  }) {
+    return SyncMetaEntriesCompanion(
+      metaKey: metaKey ?? this.metaKey,
+      metaValue: metaValue ?? this.metaValue,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (metaKey.present) {
+      map['meta_key'] = Variable<String>(metaKey.value);
+    }
+    if (metaValue.present) {
+      map['meta_value'] = Variable<String>(metaValue.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncMetaEntriesCompanion(')
+          ..write('metaKey: $metaKey, ')
+          ..write('metaValue: $metaValue, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -1014,6 +1408,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $InspectionsTable inspections = $InspectionsTable(this);
   late final $OutboxEntriesTable outboxEntries = $OutboxEntriesTable(this);
+  late final $SyncMetaEntriesTable syncMetaEntries = $SyncMetaEntriesTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1021,6 +1418,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     inspections,
     outboxEntries,
+    syncMetaEntries,
   ];
 }
 
@@ -1435,6 +1833,9 @@ typedef $$OutboxEntriesTableCreateCompanionBuilder =
       Value<int> attemptCount,
       Value<DateTime?> lastAttemptAt,
       Value<String> status,
+      Value<bool> imageUploaded,
+      Value<DateTime?> nextAttemptAt,
+      Value<String?> lastError,
     });
 typedef $$OutboxEntriesTableUpdateCompanionBuilder =
     OutboxEntriesCompanion Function({
@@ -1443,6 +1844,9 @@ typedef $$OutboxEntriesTableUpdateCompanionBuilder =
       Value<int> attemptCount,
       Value<DateTime?> lastAttemptAt,
       Value<String> status,
+      Value<bool> imageUploaded,
+      Value<DateTime?> nextAttemptAt,
+      Value<String?> lastError,
     });
 
 final class $$OutboxEntriesTableReferences
@@ -1501,6 +1905,21 @@ class $$OutboxEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get imageUploaded => $composableBuilder(
+    column: $table.imageUploaded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$InspectionsTableFilterComposer get inspectionId {
     final $$InspectionsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -1554,6 +1973,21 @@ class $$OutboxEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get imageUploaded => $composableBuilder(
+    column: $table.imageUploaded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$InspectionsTableOrderingComposer get inspectionId {
     final $$InspectionsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -1602,6 +2036,19 @@ class $$OutboxEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<bool> get imageUploaded => $composableBuilder(
+    column: $table.imageUploaded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
 
   $$InspectionsTableAnnotationComposer get inspectionId {
     final $$InspectionsTableAnnotationComposer composer = $composerBuilder(
@@ -1660,12 +2107,18 @@ class $$OutboxEntriesTableTableManager
                 Value<int> attemptCount = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<bool> imageUploaded = const Value.absent(),
+                Value<DateTime?> nextAttemptAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
               }) => OutboxEntriesCompanion(
                 id: id,
                 inspectionId: inspectionId,
                 attemptCount: attemptCount,
                 lastAttemptAt: lastAttemptAt,
                 status: status,
+                imageUploaded: imageUploaded,
+                nextAttemptAt: nextAttemptAt,
+                lastError: lastError,
               ),
           createCompanionCallback:
               ({
@@ -1674,12 +2127,18 @@ class $$OutboxEntriesTableTableManager
                 Value<int> attemptCount = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<bool> imageUploaded = const Value.absent(),
+                Value<DateTime?> nextAttemptAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
               }) => OutboxEntriesCompanion.insert(
                 id: id,
                 inspectionId: inspectionId,
                 attemptCount: attemptCount,
                 lastAttemptAt: lastAttemptAt,
                 status: status,
+                imageUploaded: imageUploaded,
+                nextAttemptAt: nextAttemptAt,
+                lastError: lastError,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -1746,6 +2205,160 @@ typedef $$OutboxEntriesTableProcessedTableManager =
       OutboxEntry,
       PrefetchHooks Function({bool inspectionId})
     >;
+typedef $$SyncMetaEntriesTableCreateCompanionBuilder =
+    SyncMetaEntriesCompanion Function({
+      required String metaKey,
+      required String metaValue,
+      Value<int> rowid,
+    });
+typedef $$SyncMetaEntriesTableUpdateCompanionBuilder =
+    SyncMetaEntriesCompanion Function({
+      Value<String> metaKey,
+      Value<String> metaValue,
+      Value<int> rowid,
+    });
+
+class $$SyncMetaEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncMetaEntriesTable> {
+  $$SyncMetaEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get metaKey => $composableBuilder(
+    column: $table.metaKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get metaValue => $composableBuilder(
+    column: $table.metaValue,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SyncMetaEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncMetaEntriesTable> {
+  $$SyncMetaEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get metaKey => $composableBuilder(
+    column: $table.metaKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get metaValue => $composableBuilder(
+    column: $table.metaValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SyncMetaEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncMetaEntriesTable> {
+  $$SyncMetaEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get metaKey =>
+      $composableBuilder(column: $table.metaKey, builder: (column) => column);
+
+  GeneratedColumn<String> get metaValue =>
+      $composableBuilder(column: $table.metaValue, builder: (column) => column);
+}
+
+class $$SyncMetaEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SyncMetaEntriesTable,
+          SyncMetaEntry,
+          $$SyncMetaEntriesTableFilterComposer,
+          $$SyncMetaEntriesTableOrderingComposer,
+          $$SyncMetaEntriesTableAnnotationComposer,
+          $$SyncMetaEntriesTableCreateCompanionBuilder,
+          $$SyncMetaEntriesTableUpdateCompanionBuilder,
+          (
+            SyncMetaEntry,
+            BaseReferences<_$AppDatabase, $SyncMetaEntriesTable, SyncMetaEntry>,
+          ),
+          SyncMetaEntry,
+          PrefetchHooks Function()
+        > {
+  $$SyncMetaEntriesTableTableManager(
+    _$AppDatabase db,
+    $SyncMetaEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncMetaEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncMetaEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncMetaEntriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> metaKey = const Value.absent(),
+                Value<String> metaValue = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncMetaEntriesCompanion(
+                metaKey: metaKey,
+                metaValue: metaValue,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String metaKey,
+                required String metaValue,
+                Value<int> rowid = const Value.absent(),
+              }) => SyncMetaEntriesCompanion.insert(
+                metaKey: metaKey,
+                metaValue: metaValue,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SyncMetaEntriesTable, SyncMetaEntry>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SyncMetaEntriesTable,
+                    SyncMetaEntry
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SyncMetaEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SyncMetaEntriesTable,
+      SyncMetaEntry,
+      $$SyncMetaEntriesTableFilterComposer,
+      $$SyncMetaEntriesTableOrderingComposer,
+      $$SyncMetaEntriesTableAnnotationComposer,
+      $$SyncMetaEntriesTableCreateCompanionBuilder,
+      $$SyncMetaEntriesTableUpdateCompanionBuilder,
+      (
+        SyncMetaEntry,
+        BaseReferences<_$AppDatabase, $SyncMetaEntriesTable, SyncMetaEntry>,
+      ),
+      SyncMetaEntry,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1754,4 +2367,6 @@ class $AppDatabaseManager {
       $$InspectionsTableTableManager(_db, _db.inspections);
   $$OutboxEntriesTableTableManager get outboxEntries =>
       $$OutboxEntriesTableTableManager(_db, _db.outboxEntries);
+  $$SyncMetaEntriesTableTableManager get syncMetaEntries =>
+      $$SyncMetaEntriesTableTableManager(_db, _db.syncMetaEntries);
 }

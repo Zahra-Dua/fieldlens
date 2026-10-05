@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:fieldlens_app/core/database/app_database.dart';
 import 'package:fieldlens_app/core/database/tables.dart';
 import 'package:fieldlens_app/core/providers/providers.dart';
 import 'package:fieldlens_app/core/router/app_routes.dart';
+import 'package:fieldlens_app/features/sync/presentation/sync_controller.dart';
+import 'package:fieldlens_app/features/sync/presentation/sync_status_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Watches the local inspections table live, so a row's sync status
-/// updates on screen the moment the sync worker (Day 10) changes it.
+/// updates on screen the moment the sync worker changes it.
 /// This is a private provider because the screen itself is the only consumer.
 final StreamProvider<List<Inspection>> _inspectionsStreamProvider =
     StreamProvider.autoDispose<List<Inspection>>((ref) {
@@ -28,32 +32,52 @@ class HistoryScreen extends ConsumerWidget {
         title: const Text('History'),
         leading: BackButton(onPressed: () => context.go(AppRoutes.capture)),
       ),
-      body: switch (inspections) {
-        AsyncData(:final value) when value.isEmpty => const Center(
-          child: Text('No inspections yet'),
-        ),
-        AsyncData(:final value) => ListView.builder(
-          itemCount: value.length,
-          itemBuilder: (context, index) => _InspectionTile(value[index]),
-        ),
-        AsyncError(:final error) => Center(child: Text('Error: $error')),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
+      body: Column(
+        children: [
+          const SyncStatusBar(),
+          Expanded(
+            child: switch (inspections) {
+              AsyncData(:final value) when value.isEmpty => const Center(
+                child: Text('No inspections yet'),
+              ),
+              AsyncData(:final value) => ListView.builder(
+                itemCount: value.length,
+                itemBuilder: (context, index) => _InspectionTile(value[index]),
+              ),
+              AsyncError(:final error) => Center(child: Text('Error: $error')),
+              _ => const Center(child: CircularProgressIndicator()),
+            },
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _InspectionTile extends StatelessWidget {
+class _InspectionTile extends ConsumerWidget {
   const _InspectionTile(this.inspection);
 
   final Inspection inspection;
 
+  // A rejected inspection is not retried automatically, so the user asks.
+  Future<void> _retry(WidgetRef ref) async {
+    await ref.read(inspectionDaoProvider).retryFailed(inspection.id);
+    unawaited(ref.read(syncControllerProvider.notifier).syncNow());
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final failed = inspection.syncStatus == InspectionSyncStatus.failed;
     return ListTile(
+      leading: _StatusIcon(inspection.syncStatus),
       title: Text(inspection.capturedAt.toString()),
       subtitle: Text('Status: ${inspection.syncStatus}'),
-      trailing: _StatusIcon(inspection.syncStatus),
+      trailing: failed
+          ? TextButton(
+              onPressed: () => unawaited(_retry(ref)),
+              child: const Text('Retry'),
+            )
+          : null,
     );
   }
 }
@@ -65,13 +89,14 @@ class _StatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return switch (status) {
-      InspectionSyncStatus.synced => const Icon(
+      InspectionSyncStatus.synced => Icon(
         Icons.cloud_done,
-        color: Colors.green,
+        color: colors.primary,
       ),
       InspectionSyncStatus.syncing => const Icon(Icons.cloud_upload),
-      InspectionSyncStatus.failed => const Icon(Icons.error, color: Colors.red),
+      InspectionSyncStatus.failed => Icon(Icons.error, color: colors.error),
       _ => const Icon(Icons.cloud_queue),
     };
   }

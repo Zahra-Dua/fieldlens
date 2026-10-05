@@ -29,6 +29,7 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   camera: ^0.12.1
+  connectivity_plus: ^7.3.1
   cupertino_icons: ^1.0.8
   device_info_plus: ^13.2.0
   dio: ^5.11.1
@@ -63,6 +64,7 @@ dev_dependencies:
   # rules and activating additional ones.
   freezed: ^4.0.2
   json_serializable: ^6.14.1
+  sqlite3: ^3.7.0
   very_good_analysis: ^11.0.0
 
 # For information on the generic Dart part of this file, see the
