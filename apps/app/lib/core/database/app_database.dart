@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 part 'app_database.g.dart';
 
 /// The app's local database: inspections and their sync outbox.
-@DriftDatabase(tables: [Inspections, OutboxEntries])
+@DriftDatabase(tables: [Inspections, OutboxEntries, SyncMetaEntries])
 class AppDatabase extends _$AppDatabase {
   /// Opens (or creates) the database file.
   AppDatabase() : super(_openConnection());
@@ -18,7 +18,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -26,6 +26,12 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(inspections, inspections.notes);
+      }
+      if (from < 3) {
+        await m.addColumn(outboxEntries, outboxEntries.imageUploaded);
+        await m.addColumn(outboxEntries, outboxEntries.nextAttemptAt);
+        await m.addColumn(outboxEntries, outboxEntries.lastError);
+        await m.createTable(syncMetaEntries);
       }
     },
   );
