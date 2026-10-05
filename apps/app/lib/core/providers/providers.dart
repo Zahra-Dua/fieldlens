@@ -12,6 +12,12 @@ import 'package:fieldlens_app/features/capture/domain/image_processor.dart';
 import 'package:fieldlens_app/features/capture/domain/metadata_gateway.dart';
 import 'package:fieldlens_app/features/capture/domain/permission_gateway.dart';
 import 'package:fieldlens_app/features/history/data/inspection_dao.dart';
+import 'package:fieldlens_app/features/sync/data/api_sync_remote.dart';
+import 'package:fieldlens_app/features/sync/data/device_identity.dart';
+import 'package:fieldlens_app/features/sync/data/platform_connectivity_gateway.dart';
+import 'package:fieldlens_app/features/sync/data/sync_worker.dart';
+import 'package:fieldlens_app/features/sync/domain/connectivity_gateway.dart';
+import 'package:fieldlens_app/features/sync/domain/sync_remote.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Build-time configuration.
@@ -65,4 +71,32 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 /// Queries and writes for inspections and their outbox entries.
 final inspectionDaoProvider = Provider<InspectionDao>(
   (ref) => InspectionDao(ref.watch(appDatabaseProvider)),
+);
+
+/// Network reachability, used to trigger a sync on reconnect.
+final connectivityGatewayProvider = Provider<ConnectivityGateway>(
+  (ref) => PlatformConnectivityGateway(),
+);
+
+/// Talks to the server on behalf of the sync worker.
+final syncRemoteProvider = Provider<SyncRemote>(
+  (ref) => ApiSyncRemote(ref.watch(apiClientProvider)),
+);
+
+/// The server's id for this device.
+final deviceIdentityProvider = Provider<DeviceIdentity>(
+  (ref) => DeviceIdentity(
+    dao: ref.watch(inspectionDaoProvider),
+    remote: ref.watch(syncRemoteProvider),
+  ),
+);
+
+/// Drains the outbox to the server.
+final syncWorkerProvider = Provider<SyncWorker>(
+  (ref) => SyncWorker(
+    dao: ref.watch(inspectionDaoProvider),
+    remote: ref.watch(syncRemoteProvider),
+    identity: ref.watch(deviceIdentityProvider),
+    connectivity: ref.watch(connectivityGatewayProvider),
+  ),
 );
