@@ -1,0 +1,6 @@
+variant,size_MB,accuracy,macro_F1,METAL_recall,same_class_as_keras,default_cpu_delegate
+float32,3.77,0.9177,0.909,0.93,1.0,ok
+float16,1.95,0.9167,0.9075,0.922,0.999,ok
+int8,1.24,0.8079,0.7876,0.896,0.8354,ok
+dynamic_range,1.13,0.9126,0.9012,0.93,0.9675,ok
+keras (reference),,0.9177,0.909,,1.0,
