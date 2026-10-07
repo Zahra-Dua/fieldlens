@@ -26,6 +26,16 @@ export function errorHandler(
     });
   }
 
+  if ("validation" in error && Array.isArray(error.validation)) {
+    return reply.status(400).send({
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Request failed validation",
+        details: error.validation,
+      },
+    });
+  }
+
   // A known, expected error from a service (not found, forbidden, etc).
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send({
