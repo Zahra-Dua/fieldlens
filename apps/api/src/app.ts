@@ -12,6 +12,7 @@ import swaggerUi from "@fastify/swagger-ui";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { devicesRoutes } from "./modules/devices/devices.routes";
 import { inspectionsRoutes } from "./modules/inspections/inspections.routes";
+import { modelsRoutes } from "./modules/models/models.routes";
 import { uploadsRoutes } from "./modules/uploads/uploads.routes";
 import { errorHandler } from "./shared/middleware/errorHandler";
 
@@ -67,10 +68,20 @@ export async function buildApp(): Promise<FastifyInstance> {
           "Offline-first inspection sync API for the FieldLens CS Internship project.",
       },
       servers: [{ url: "http://localhost:3000", description: "Local development" }],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT",
+          },
+        },
+      },
       tags: [
         { name: "Auth", description: "Authentication and token lifecycle" },
         { name: "Devices", description: "Device registration and sync metadata" },
         { name: "Inspections", description: "Inspection creation, listing, and access checks" },
+        { name: "Models", description: "Model metadata provided by the ML service" },
         { name: "Uploads", description: "Inspection image upload and MinIO storage" },
       ],
     },
@@ -94,6 +105,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(authRoutes);
   await app.register(devicesRoutes);
   await app.register(inspectionsRoutes);
+  await app.register(modelsRoutes);
   await app.register(uploadsRoutes);
 
   app.get("/health", async () => {

@@ -28,6 +28,7 @@ describe("OpenAPI contract", () => {
       "/auth/logout",
       "/auth/me",
       "/devices/register",
+      "/models/latest",
       "/inspections",
       "/inspections/{id}",
       "/inspections/{id}/images",
@@ -37,6 +38,25 @@ describe("OpenAPI contract", () => {
     for (const route of expectedRoutes) {
       expect(paths).toContain(route);
     }
+
+    const latestModelOperation = spec.paths["/models/latest"].get;
+    expect(latestModelOperation.parameters).toContainEqual(
+      expect.objectContaining({
+        name: "platform",
+        in: "query",
+        required: true,
+      }),
+    );
+    expect(latestModelOperation.responses).toHaveProperty("200");
+
+    const loginOperation = spec.paths["/auth/login"].post;
+    expect(loginOperation.requestBody.content["application/json"].schema).toMatchObject({
+      required: ["email", "password"],
+      properties: {
+        email: { type: "string", format: "email" },
+        password: { type: "string" },
+      },
+    });
 
     expect(paths.length).toBeGreaterThanOrEqual(expectedRoutes.length);
   });
