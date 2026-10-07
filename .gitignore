@@ -43,3 +43,6 @@ apps/app/env/emulator.json
 Thumbs.db
 .vscode/
 .idea/
+
+# ML service local data (uploaded models + registry)
+apps/ml/storage/
