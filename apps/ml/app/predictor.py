@@ -29,10 +29,38 @@ class InvalidImage(Exception):
     pass
 
 
+def resize_bilinear_tf(img: np.ndarray, out_h: int, out_w: int) -> np.ndarray:
+    """TensorFlow-style bilinear resize (what tf.image.resize does by default).
+
+    Half-pixel centres and NO antialiasing. Training used tf.image.resize, while PIL's
+    bilinear averages pixels when shrinking (antialiasing). On big camera photos the two
+    give different pixels and so different probabilities, so serving must resize the way
+    training did. Returns unrounded float32, like TensorFlow.
+    """
+    h, w, _ = img.shape
+    img = img.astype(np.float32)
+
+    def coords(out: int, inp: int):
+        src = np.maximum((np.arange(out) + 0.5) * (inp / out) - 0.5, 0.0)
+        floor = np.floor(src)
+        lo = np.minimum(floor.astype(int), inp - 1)
+        hi = np.minimum(lo + 1, inp - 1)
+        return lo, hi, (src - floor).astype(np.float32)
+
+    y0, y1, fy = coords(out_h, h)
+    x0, x1, fx = coords(out_w, w)
+    fx = fx[None, :, None]
+    fy = fy[:, None, None]
+    top = img[y0][:, x0] * (1 - fx) + img[y0][:, x1] * fx
+    bot = img[y1][:, x0] * (1 - fx) + img[y1][:, x1] * fx
+    return top * (1 - fy) + bot * fy
+
+
 def preprocess(data: bytes) -> np.ndarray:
     """Bytes of any common image format -> float32 array [1,224,224,3], values 0-255.
 
-    Must match training exactly: RGB, stretched (no crop) with bilinear resize.
+    Must match training exactly: RGB, stretched (no crop), TensorFlow-style bilinear
+    resize (see resize_bilinear_tf).
     """
     if not data:
         raise InvalidImage("Uploaded image is empty")
@@ -43,8 +71,8 @@ def preprocess(data: bytes) -> np.ndarray:
         img.load()
     except (UnidentifiedImageError, OSError) as exc:
         raise InvalidImage("Could not read the upload as an image") from exc
-    img = img.convert("RGB").resize((IMAGE_SIZE, IMAGE_SIZE), Image.Resampling.BILINEAR)
-    return np.asarray(img, dtype=np.float32)[np.newaxis, ...]
+    rgb = np.asarray(img.convert("RGB"))
+    return resize_bilinear_tf(rgb, IMAGE_SIZE, IMAGE_SIZE)[np.newaxis, ...]
 
 
 class Predictor:
