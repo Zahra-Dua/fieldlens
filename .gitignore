@@ -26,6 +26,8 @@ venv/
 apps/ml/data/
 *.h5
 *.tflite
+# The app bundles its model; uploaded models in apps/ml/storage stay ignored.
+!apps/app/assets/models/*.tflite
 *.pt
 *.onnx
 

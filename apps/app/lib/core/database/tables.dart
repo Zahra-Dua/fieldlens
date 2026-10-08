@@ -35,6 +35,21 @@ class Inspections extends Table {
   /// Optional field-worker note, added in schema v2.
   TextColumn get notes => text().nullable()();
 
+  /// On-device model prediction; null for inspections made before Day 14.
+  TextColumn get predictedClass => text().nullable()();
+
+  /// Model confidence in the predicted class, from 0 to 1.
+  RealColumn get confidence => real().nullable()();
+
+  /// Whether confidence was below the app's threshold when captured.
+  BoolColumn get isUncertain => boolean().nullable()();
+
+  /// Worker correction, only set when it differs from the prediction.
+  TextColumn get correctedClass => text().nullable()();
+
+  /// Whether the worker accepted the prediction or supplied a correction.
+  BoolColumn get isAccepted => boolean().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

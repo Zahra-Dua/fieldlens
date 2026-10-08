@@ -68,10 +68,20 @@ class _InspectionTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final failed = inspection.syncStatus == InspectionSyncStatus.failed;
+    final prediction = inspection.predictedClass;
+    final confidence = inspection.confidence;
+    final classificationSummary = prediction == null
+        ? 'Not classified'
+        : '${inspection.correctedClass ?? prediction} · '
+              '${((confidence ?? 0) * 100).toStringAsFixed(1)}%'
+              '${inspection.isUncertain == true ? ' · Uncertain' : ''}';
     return ListTile(
       leading: _StatusIcon(inspection.syncStatus),
       title: Text(inspection.capturedAt.toString()),
-      subtitle: Text('Status: ${inspection.syncStatus}'),
+      subtitle: Text(
+        '$classificationSummary\nStatus: ${inspection.syncStatus}',
+      ),
+      isThreeLine: true,
       trailing: failed
           ? TextButton(
               onPressed: () => unawaited(_retry(ref)),

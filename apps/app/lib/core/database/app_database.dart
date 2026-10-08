@@ -18,7 +18,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -32,6 +32,13 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(outboxEntries, outboxEntries.nextAttemptAt);
         await m.addColumn(outboxEntries, outboxEntries.lastError);
         await m.createTable(syncMetaEntries);
+      }
+      if (from < 4) {
+        await m.addColumn(inspections, inspections.predictedClass);
+        await m.addColumn(inspections, inspections.confidence);
+        await m.addColumn(inspections, inspections.isUncertain);
+        await m.addColumn(inspections, inspections.correctedClass);
+        await m.addColumn(inspections, inspections.isAccepted);
       }
     },
   );

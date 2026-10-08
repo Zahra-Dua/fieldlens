@@ -237,6 +237,10 @@ class SyncWorker {
       id: item.inspection.id,
       serverDeviceId: serverDeviceId,
       capturedAt: item.inspection.capturedAt,
+      predictedClass: item.inspection.predictedClass,
+      confidence: item.inspection.confidence,
+      correctedClass: item.inspection.correctedClass,
+      isAccepted: item.inspection.isAccepted,
       latitude: item.inspection.latitude,
       longitude: item.inspection.longitude,
     );

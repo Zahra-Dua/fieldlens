@@ -34,7 +34,7 @@ PRAGMA user_version = 2;
 ''';
 
 void main() {
-  test('upgrading from v2 keeps old rows and adds the v3 columns', () async {
+  test('upgrading from v2 keeps old rows and adds v3 and v4 columns', () async {
     final raw = sqlite3.openInMemory()..execute(_schemaV2);
     final db = AppDatabase.forTesting(NativeDatabase.opened(raw));
     final dao = InspectionDao(db);
@@ -47,6 +47,9 @@ void main() {
     expect(due.single.entry.imageUploaded, isFalse);
     expect(due.single.entry.nextAttemptAt, isNull);
     expect(due.single.entry.lastError, isNull);
+    expect(due.single.inspection.predictedClass, isNull);
+    expect(due.single.inspection.confidence, isNull);
+    expect(due.single.inspection.correctedClass, isNull);
 
     // The new key-value table is usable.
     await dao.writeMeta(SyncMetaKeys.lastPushAt, 'x');

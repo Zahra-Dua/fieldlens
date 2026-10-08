@@ -16,11 +16,44 @@ const inspectionInputSchema = z
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
     capturedAt: z.coerce.date(),
-    predictedClass: z.enum(["PLASTIC", "GLASS", "METAL", "PAPER", "ORGANIC"]),
-    confidence: z.number().min(0).max(1),
-    inferenceSource: z.enum(["ON_DEVICE", "CLOUD"]),
+    predictedClass: z
+      .enum(["PLASTIC", "GLASS", "METAL", "PAPER", "ORGANIC"])
+      .optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    inferenceSource: z.enum(["ON_DEVICE", "CLOUD"]).optional(),
+    correctedClass: z
+      .enum(["PLASTIC", "GLASS", "METAL", "PAPER", "ORGANIC"])
+      .optional(),
+    isAccepted: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((item, context) => {
+    const hasPrediction =
+      item.predictedClass !== undefined ||
+      item.confidence !== undefined ||
+      item.inferenceSource !== undefined;
+    if (
+      hasPrediction &&
+      (item.predictedClass === undefined ||
+        item.confidence === undefined ||
+        item.inferenceSource === undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "predictedClass, confidence, and inferenceSource must be provided together",
+      });
+    }
+    if (
+      !hasPrediction &&
+      (item.correctedClass !== undefined || item.isAccepted !== undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "correction fields require a prediction",
+      });
+    }
+  });
 
 // The create endpoint is bulk-capable — the mobile client syncs a batch of
 // inspections at once after reconnecting, not one at a time.

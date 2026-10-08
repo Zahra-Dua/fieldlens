@@ -36,6 +36,11 @@ class InspectionDao {
     required String imagePath,
     required DateTime capturedAt,
     required String deviceId,
+    String? predictedClass,
+    double? confidence,
+    bool? isUncertain,
+    String? correctedClass,
+    bool? isAccepted,
     double? latitude,
     double? longitude,
   }) {
@@ -50,6 +55,11 @@ class InspectionDao {
               deviceId: deviceId,
               latitude: Value(latitude),
               longitude: Value(longitude),
+              predictedClass: Value(predictedClass),
+              confidence: Value(confidence),
+              isUncertain: Value(isUncertain),
+              correctedClass: Value(correctedClass),
+              isAccepted: Value(isAccepted),
             ),
           );
       await _db
