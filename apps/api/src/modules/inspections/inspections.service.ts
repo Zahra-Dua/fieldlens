@@ -35,13 +35,21 @@ export class InspectionsService {
             longitude: item.longitude,
             capturedAt: item.capturedAt,
             syncedAt: item.status === "SYNCED" ? new Date() : null,
-            predictions: {
-              create: {
-                predictedClass: item.predictedClass,
-                confidence: item.confidence,
-                inferenceSource: item.inferenceSource,
+            ...(item.predictedClass !== undefined && {
+              predictions: {
+                create: {
+                  predictedClass: item.predictedClass,
+                  confidence: item.confidence!,
+                  inferenceSource: item.inferenceSource!,
+                  ...(item.correctedClass !== undefined && {
+                    correctedClass: item.correctedClass,
+                  }),
+                  ...(item.isAccepted !== undefined && {
+                    isAccepted: item.isAccepted,
+                  }),
+                },
               },
-            },
+            }),
           },
           // Already exists (a retry) — don't recreate the prediction,
           // just refresh sync status so the client sees it as settled.

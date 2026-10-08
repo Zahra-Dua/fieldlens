@@ -56,6 +56,8 @@ describe("Inspections", () => {
           predictedClass: "PLASTIC",
           confidence: 0.93,
           inferenceSource: "ON_DEVICE",
+          correctedClass: "GLASS",
+          isAccepted: false,
         },
       ],
     };
@@ -73,10 +75,17 @@ describe("Inspections", () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
 
-    const total = await prisma.inspection.count({
-      where: { id: "11111111-1111-4111-8111-111111111111" },
+    const prediction = await prisma.prediction.findFirst({
+      where: { inspectionId: "11111111-1111-4111-8111-111111111111" },
     });
-    expect(total).toBe(1);
+    expect(prediction?.predictedClass).toBe("PLASTIC");
+    expect(prediction?.correctedClass).toBe("GLASS");
+    expect(prediction?.isAccepted).toBe(false);
+
+    const predictionCount = await prisma.prediction.count({
+  where: { inspectionId: "11111111-1111-4111-8111-111111111111" },
+});
+expect(predictionCount).toBe(1);
 
     await prisma.inspection.deleteMany({ where: { deviceId: device.id } });
     await prisma.device.delete({ where: { id: device.id } });

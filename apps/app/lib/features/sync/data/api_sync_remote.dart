@@ -13,13 +13,6 @@ class ApiSyncRemote implements SyncRemote {
 
   final ApiClient _client;
 
-  // The API requires a prediction, but the on-device model only arrives on
-  // Day 14. Until then every record carries this placeholder, kept in this
-  // one place so it is easy to replace (see ADR 0013).
-  static const _placeholderClass = 'PLASTIC';
-  static const _placeholderConfidence = 0.0;
-  static const _placeholderSource = 'ON_DEVICE';
-
   @override
   Future<String> registerDevice({required String deviceUuid}) async {
     try {
@@ -55,9 +48,11 @@ class ApiSyncRemote implements SyncRemote {
     'capturedAt': upload.capturedAt.toUtc().toIso8601String(),
     if (upload.latitude != null) 'latitude': upload.latitude!,
     if (upload.longitude != null) 'longitude': upload.longitude!,
-    'predictedClass': _placeholderClass,
-    'confidence': _placeholderConfidence,
-    'inferenceSource': _placeholderSource,
+    if (upload.predictedClass != null) 'predictedClass': upload.predictedClass!,
+    if (upload.confidence != null) 'confidence': upload.confidence!,
+    if (upload.predictedClass != null) 'inferenceSource': 'ON_DEVICE',
+    if (upload.correctedClass != null) 'correctedClass': upload.correctedClass!,
+    if (upload.isAccepted != null) 'isAccepted': upload.isAccepted!,
   };
 
   @override

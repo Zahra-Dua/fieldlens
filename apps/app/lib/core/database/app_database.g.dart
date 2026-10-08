@@ -118,6 +118,67 @@ class $InspectionsTable extends Inspections
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _predictedClassMeta = const VerificationMeta(
+    'predictedClass',
+  );
+  @override
+  late final GeneratedColumn<String> predictedClass = GeneratedColumn<String>(
+    'predicted_class',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _confidenceMeta = const VerificationMeta(
+    'confidence',
+  );
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+    'confidence',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isUncertainMeta = const VerificationMeta(
+    'isUncertain',
+  );
+  @override
+  late final GeneratedColumn<bool> isUncertain = GeneratedColumn<bool>(
+    'is_uncertain',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_uncertain" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _correctedClassMeta = const VerificationMeta(
+    'correctedClass',
+  );
+  @override
+  late final GeneratedColumn<String> correctedClass = GeneratedColumn<String>(
+    'corrected_class',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isAcceptedMeta = const VerificationMeta(
+    'isAccepted',
+  );
+  @override
+  late final GeneratedColumn<bool> isAccepted = GeneratedColumn<bool>(
+    'is_accepted',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_accepted" IN (0, 1))',
+    ),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -130,6 +191,11 @@ class $InspectionsTable extends Inspections
     createdAt,
     updatedAt,
     notes,
+    predictedClass,
+    confidence,
+    isUncertain,
+    correctedClass,
+    isAccepted,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -208,6 +274,45 @@ class $InspectionsTable extends Inspections
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('predicted_class')) {
+      context.handle(
+        _predictedClassMeta,
+        predictedClass.isAcceptableOrUnknown(
+          data['predicted_class']!,
+          _predictedClassMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+        _confidenceMeta,
+        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
+      );
+    }
+    if (data.containsKey('is_uncertain')) {
+      context.handle(
+        _isUncertainMeta,
+        isUncertain.isAcceptableOrUnknown(
+          data['is_uncertain']!,
+          _isUncertainMeta,
+        ),
+      );
+    }
+    if (data.containsKey('corrected_class')) {
+      context.handle(
+        _correctedClassMeta,
+        correctedClass.isAcceptableOrUnknown(
+          data['corrected_class']!,
+          _correctedClassMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_accepted')) {
+      context.handle(
+        _isAcceptedMeta,
+        isAccepted.isAcceptableOrUnknown(data['is_accepted']!, _isAcceptedMeta),
+      );
+    }
     return context;
   }
 
@@ -257,6 +362,26 @@ class $InspectionsTable extends Inspections
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      predictedClass: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}predicted_class'],
+      ),
+      confidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence'],
+      ),
+      isUncertain: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_uncertain'],
+      ),
+      correctedClass: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}corrected_class'],
+      ),
+      isAccepted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_accepted'],
+      ),
     );
   }
 
@@ -297,6 +422,21 @@ class Inspection extends DataClass implements Insertable<Inspection> {
 
   /// Optional field-worker note, added in schema v2.
   final String? notes;
+
+  /// On-device model prediction; null for inspections made before Day 14.
+  final String? predictedClass;
+
+  /// Model confidence in the predicted class, from 0 to 1.
+  final double? confidence;
+
+  /// Whether confidence was below the app's threshold when captured.
+  final bool? isUncertain;
+
+  /// Worker correction, only set when it differs from the prediction.
+  final String? correctedClass;
+
+  /// Whether the worker accepted the prediction or supplied a correction.
+  final bool? isAccepted;
   const Inspection({
     required this.id,
     required this.imagePath,
@@ -308,6 +448,11 @@ class Inspection extends DataClass implements Insertable<Inspection> {
     required this.createdAt,
     required this.updatedAt,
     this.notes,
+    this.predictedClass,
+    this.confidence,
+    this.isUncertain,
+    this.correctedClass,
+    this.isAccepted,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -327,6 +472,21 @@ class Inspection extends DataClass implements Insertable<Inspection> {
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || predictedClass != null) {
+      map['predicted_class'] = Variable<String>(predictedClass);
+    }
+    if (!nullToAbsent || confidence != null) {
+      map['confidence'] = Variable<double>(confidence);
+    }
+    if (!nullToAbsent || isUncertain != null) {
+      map['is_uncertain'] = Variable<bool>(isUncertain);
+    }
+    if (!nullToAbsent || correctedClass != null) {
+      map['corrected_class'] = Variable<String>(correctedClass);
+    }
+    if (!nullToAbsent || isAccepted != null) {
+      map['is_accepted'] = Variable<bool>(isAccepted);
     }
     return map;
   }
@@ -349,6 +509,21 @@ class Inspection extends DataClass implements Insertable<Inspection> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      predictedClass: predictedClass == null && nullToAbsent
+          ? const Value.absent()
+          : Value(predictedClass),
+      confidence: confidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(confidence),
+      isUncertain: isUncertain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(isUncertain),
+      correctedClass: correctedClass == null && nullToAbsent
+          ? const Value.absent()
+          : Value(correctedClass),
+      isAccepted: isAccepted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(isAccepted),
     );
   }
 
@@ -368,6 +543,11 @@ class Inspection extends DataClass implements Insertable<Inspection> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       notes: serializer.fromJson<String?>(json['notes']),
+      predictedClass: serializer.fromJson<String?>(json['predictedClass']),
+      confidence: serializer.fromJson<double?>(json['confidence']),
+      isUncertain: serializer.fromJson<bool?>(json['isUncertain']),
+      correctedClass: serializer.fromJson<String?>(json['correctedClass']),
+      isAccepted: serializer.fromJson<bool?>(json['isAccepted']),
     );
   }
   @override
@@ -384,6 +564,11 @@ class Inspection extends DataClass implements Insertable<Inspection> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'notes': serializer.toJson<String?>(notes),
+      'predictedClass': serializer.toJson<String?>(predictedClass),
+      'confidence': serializer.toJson<double?>(confidence),
+      'isUncertain': serializer.toJson<bool?>(isUncertain),
+      'correctedClass': serializer.toJson<String?>(correctedClass),
+      'isAccepted': serializer.toJson<bool?>(isAccepted),
     };
   }
 
@@ -398,6 +583,11 @@ class Inspection extends DataClass implements Insertable<Inspection> {
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<String?> notes = const Value.absent(),
+    Value<String?> predictedClass = const Value.absent(),
+    Value<double?> confidence = const Value.absent(),
+    Value<bool?> isUncertain = const Value.absent(),
+    Value<String?> correctedClass = const Value.absent(),
+    Value<bool?> isAccepted = const Value.absent(),
   }) => Inspection(
     id: id ?? this.id,
     imagePath: imagePath ?? this.imagePath,
@@ -409,6 +599,15 @@ class Inspection extends DataClass implements Insertable<Inspection> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     notes: notes.present ? notes.value : this.notes,
+    predictedClass: predictedClass.present
+        ? predictedClass.value
+        : this.predictedClass,
+    confidence: confidence.present ? confidence.value : this.confidence,
+    isUncertain: isUncertain.present ? isUncertain.value : this.isUncertain,
+    correctedClass: correctedClass.present
+        ? correctedClass.value
+        : this.correctedClass,
+    isAccepted: isAccepted.present ? isAccepted.value : this.isAccepted,
   );
   Inspection copyWithCompanion(InspectionsCompanion data) {
     return Inspection(
@@ -426,6 +625,21 @@ class Inspection extends DataClass implements Insertable<Inspection> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       notes: data.notes.present ? data.notes.value : this.notes,
+      predictedClass: data.predictedClass.present
+          ? data.predictedClass.value
+          : this.predictedClass,
+      confidence: data.confidence.present
+          ? data.confidence.value
+          : this.confidence,
+      isUncertain: data.isUncertain.present
+          ? data.isUncertain.value
+          : this.isUncertain,
+      correctedClass: data.correctedClass.present
+          ? data.correctedClass.value
+          : this.correctedClass,
+      isAccepted: data.isAccepted.present
+          ? data.isAccepted.value
+          : this.isAccepted,
     );
   }
 
@@ -441,7 +655,12 @@ class Inspection extends DataClass implements Insertable<Inspection> {
           ..write('syncStatus: $syncStatus, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('predictedClass: $predictedClass, ')
+          ..write('confidence: $confidence, ')
+          ..write('isUncertain: $isUncertain, ')
+          ..write('correctedClass: $correctedClass, ')
+          ..write('isAccepted: $isAccepted')
           ..write(')'))
         .toString();
   }
@@ -458,6 +677,11 @@ class Inspection extends DataClass implements Insertable<Inspection> {
     createdAt,
     updatedAt,
     notes,
+    predictedClass,
+    confidence,
+    isUncertain,
+    correctedClass,
+    isAccepted,
   );
   @override
   bool operator ==(Object other) =>
@@ -472,7 +696,12 @@ class Inspection extends DataClass implements Insertable<Inspection> {
           other.syncStatus == this.syncStatus &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.predictedClass == this.predictedClass &&
+          other.confidence == this.confidence &&
+          other.isUncertain == this.isUncertain &&
+          other.correctedClass == this.correctedClass &&
+          other.isAccepted == this.isAccepted);
 }
 
 class InspectionsCompanion extends UpdateCompanion<Inspection> {
@@ -486,6 +715,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<String?> notes;
+  final Value<String?> predictedClass;
+  final Value<double?> confidence;
+  final Value<bool?> isUncertain;
+  final Value<String?> correctedClass;
+  final Value<bool?> isAccepted;
   final Value<int> rowid;
   const InspectionsCompanion({
     this.id = const Value.absent(),
@@ -498,6 +732,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.notes = const Value.absent(),
+    this.predictedClass = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.isUncertain = const Value.absent(),
+    this.correctedClass = const Value.absent(),
+    this.isAccepted = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   InspectionsCompanion.insert({
@@ -511,6 +750,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.notes = const Value.absent(),
+    this.predictedClass = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.isUncertain = const Value.absent(),
+    this.correctedClass = const Value.absent(),
+    this.isAccepted = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        imagePath = Value(imagePath),
@@ -527,6 +771,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<String>? notes,
+    Expression<String>? predictedClass,
+    Expression<double>? confidence,
+    Expression<bool>? isUncertain,
+    Expression<String>? correctedClass,
+    Expression<bool>? isAccepted,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -540,6 +789,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (notes != null) 'notes': notes,
+      if (predictedClass != null) 'predicted_class': predictedClass,
+      if (confidence != null) 'confidence': confidence,
+      if (isUncertain != null) 'is_uncertain': isUncertain,
+      if (correctedClass != null) 'corrected_class': correctedClass,
+      if (isAccepted != null) 'is_accepted': isAccepted,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -555,6 +809,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<String?>? notes,
+    Value<String?>? predictedClass,
+    Value<double?>? confidence,
+    Value<bool?>? isUncertain,
+    Value<String?>? correctedClass,
+    Value<bool?>? isAccepted,
     Value<int>? rowid,
   }) {
     return InspectionsCompanion(
@@ -568,6 +827,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       notes: notes ?? this.notes,
+      predictedClass: predictedClass ?? this.predictedClass,
+      confidence: confidence ?? this.confidence,
+      isUncertain: isUncertain ?? this.isUncertain,
+      correctedClass: correctedClass ?? this.correctedClass,
+      isAccepted: isAccepted ?? this.isAccepted,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -605,6 +869,21 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (predictedClass.present) {
+      map['predicted_class'] = Variable<String>(predictedClass.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (isUncertain.present) {
+      map['is_uncertain'] = Variable<bool>(isUncertain.value);
+    }
+    if (correctedClass.present) {
+      map['corrected_class'] = Variable<String>(correctedClass.value);
+    }
+    if (isAccepted.present) {
+      map['is_accepted'] = Variable<bool>(isAccepted.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -624,6 +903,11 @@ class InspectionsCompanion extends UpdateCompanion<Inspection> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('notes: $notes, ')
+          ..write('predictedClass: $predictedClass, ')
+          ..write('confidence: $confidence, ')
+          ..write('isUncertain: $isUncertain, ')
+          ..write('correctedClass: $correctedClass, ')
+          ..write('isAccepted: $isAccepted, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1434,6 +1718,11 @@ typedef $$InspectionsTableCreateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<String?> notes,
+      Value<String?> predictedClass,
+      Value<double?> confidence,
+      Value<bool?> isUncertain,
+      Value<String?> correctedClass,
+      Value<bool?> isAccepted,
       Value<int> rowid,
     });
 typedef $$InspectionsTableUpdateCompanionBuilder =
@@ -1448,6 +1737,11 @@ typedef $$InspectionsTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<String?> notes,
+      Value<String?> predictedClass,
+      Value<double?> confidence,
+      Value<bool?> isUncertain,
+      Value<String?> correctedClass,
+      Value<bool?> isAccepted,
       Value<int> rowid,
     });
 
@@ -1530,6 +1824,31 @@ class $$InspectionsTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get predictedClass => $composableBuilder(
+    column: $table.predictedClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isUncertain => $composableBuilder(
+    column: $table.isUncertain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get correctedClass => $composableBuilder(
+    column: $table.correctedClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAccepted => $composableBuilder(
+    column: $table.isAccepted,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1617,6 +1936,31 @@ class $$InspectionsTableOrderingComposer
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get predictedClass => $composableBuilder(
+    column: $table.predictedClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isUncertain => $composableBuilder(
+    column: $table.isUncertain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get correctedClass => $composableBuilder(
+    column: $table.correctedClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAccepted => $composableBuilder(
+    column: $table.isAccepted,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$InspectionsTableAnnotationComposer
@@ -1661,6 +2005,31 @@ class $$InspectionsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get predictedClass => $composableBuilder(
+    column: $table.predictedClass,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isUncertain => $composableBuilder(
+    column: $table.isUncertain,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get correctedClass => $composableBuilder(
+    column: $table.correctedClass,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isAccepted => $composableBuilder(
+    column: $table.isAccepted,
+    builder: (column) => column,
+  );
 
   Expression<T> outboxEntriesRefs<T extends Object>(
     Expression<T> Function($$OutboxEntriesTableAnnotationComposer a) f,
@@ -1726,6 +2095,11 @@ class $$InspectionsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> predictedClass = const Value.absent(),
+                Value<double?> confidence = const Value.absent(),
+                Value<bool?> isUncertain = const Value.absent(),
+                Value<String?> correctedClass = const Value.absent(),
+                Value<bool?> isAccepted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => InspectionsCompanion(
                 id: id,
@@ -1738,6 +2112,11 @@ class $$InspectionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 notes: notes,
+                predictedClass: predictedClass,
+                confidence: confidence,
+                isUncertain: isUncertain,
+                correctedClass: correctedClass,
+                isAccepted: isAccepted,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1752,6 +2131,11 @@ class $$InspectionsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> predictedClass = const Value.absent(),
+                Value<double?> confidence = const Value.absent(),
+                Value<bool?> isUncertain = const Value.absent(),
+                Value<String?> correctedClass = const Value.absent(),
+                Value<bool?> isAccepted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => InspectionsCompanion.insert(
                 id: id,
@@ -1764,6 +2148,11 @@ class $$InspectionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 notes: notes,
+                predictedClass: predictedClass,
+                confidence: confidence,
+                isUncertain: isUncertain,
+                correctedClass: correctedClass,
+                isAccepted: isAccepted,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

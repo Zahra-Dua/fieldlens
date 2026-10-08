@@ -20,12 +20,22 @@ void main() {
       imagePath: '/fake/path.jpg',
       capturedAt: DateTime(2026),
       deviceId: 'device-1',
+      predictedClass: 'PLASTIC',
+      confidence: 0.82,
+      isUncertain: false,
+      correctedClass: 'GLASS',
+      isAccepted: false,
     );
 
     final rows = await dao.watchAll().first;
     expect(rows, hasLength(1));
     expect(rows.single.id, 'test-id-1');
     expect(rows.single.syncStatus, 'pending');
+    expect(rows.single.predictedClass, 'PLASTIC');
+    expect(rows.single.confidence, 0.82);
+    expect(rows.single.isUncertain, isFalse);
+    expect(rows.single.correctedClass, 'GLASS');
+    expect(rows.single.isAccepted, isFalse);
 
     final outboxRows = await db.select(db.outboxEntries).get();
     expect(outboxRows, hasLength(1));

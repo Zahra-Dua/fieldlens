@@ -5,6 +5,10 @@ class InspectionUpload {
     required this.id,
     required this.serverDeviceId,
     required this.capturedAt,
+    this.predictedClass,
+    this.confidence,
+    this.correctedClass,
+    this.isAccepted,
     this.latitude,
     this.longitude,
   });
@@ -17,6 +21,18 @@ class InspectionUpload {
 
   /// When the photo was taken.
   final DateTime capturedAt;
+
+  /// On-device prediction. Null only for legacy records captured pre-Day 14.
+  final String? predictedClass;
+
+  /// Confidence for [predictedClass].
+  final double? confidence;
+
+  /// User-provided label correction, if different from the prediction.
+  final String? correctedClass;
+
+  /// Whether the worker accepted the model's prediction.
+  final bool? isAccepted;
 
   /// Optional GPS latitude.
   final double? latitude;

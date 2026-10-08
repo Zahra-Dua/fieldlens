@@ -66,7 +66,7 @@ void main() {
     expect(item['deviceId'], 'server-device');
   });
 
-  test('GPS is sent when present, with the placeholder prediction', () async {
+  test('prediction and correction are sent when present', () async {
     await remote.pushInspections([
       InspectionUpload(
         id: 'a',
@@ -74,12 +74,34 @@ void main() {
         capturedAt: DateTime.utc(2026, 10, 3),
         latitude: 33.6,
         longitude: 73,
+        predictedClass: 'PLASTIC',
+        confidence: 0.82,
+        correctedClass: 'GLASS',
+        isAccepted: false,
       ),
     ]);
 
     final item = sentItem();
     expect(item['latitude'], 33.6);
     expect(item['predictedClass'], 'PLASTIC');
-    expect(item['confidence'], 0);
+    expect(item['confidence'], 0.82);
+    expect(item['inferenceSource'], 'ON_DEVICE');
+    expect(item['correctedClass'], 'GLASS');
+    expect(item['isAccepted'], isFalse);
+  });
+
+  test('legacy inspection omits unavailable prediction fields', () async {
+    await remote.pushInspections([
+      InspectionUpload(
+        id: 'a',
+        serverDeviceId: 'server-device',
+        capturedAt: DateTime.utc(2026, 10, 3),
+      ),
+    ]);
+
+    final item = sentItem();
+    expect(item.containsKey('predictedClass'), isFalse);
+    expect(item.containsKey('confidence'), isFalse);
+    expect(item.containsKey('inferenceSource'), isFalse);
   });
 }
