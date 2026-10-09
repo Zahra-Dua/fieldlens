@@ -17,7 +17,7 @@ class TfliteClassifier {
   TfliteClassifier._(this._interpreter);
 
   /// Bundled float32 model; the model card does not recommend full int8.
-  static const modelAsset = 'assets/models/fieldlens_float32.tflite';
+  static const modelAsset = 'assets/models/fieldlens_float16.tflite';
 
   /// Required model input width and height.
   static const inputSize = 224;
@@ -26,9 +26,10 @@ class TfliteClassifier {
 
   /// Loads the bundled model and classifies [photoBytes] off the UI isolate.
   ///
-  /// The GPU delegate is attempted in the worker isolate. LiteRT falls back to
-  /// CPU if the delegate cannot create an interpreter; a delegate runtime
-  /// failure also retries once on CPU.
+  /// Loads the bundled model and classifies [photoBytes] off the UI isolate.
+  ///
+  /// The model runs with XNNPACK (the fastest option on the phone we measured,
+  /// see docs/benchmark.md). If that fails, it is retried once on the plain CPU.
   static Future<Classification> classifyInBackground(
     Uint8List photoBytes,
   ) async {
@@ -167,37 +168,40 @@ class _InferenceMessage {
 List<double> _runInference(_InferenceMessage message) {
   final modelBytes = message.modelBytes.materialize().asUint8List();
   final photoBytes = message.photoBytes.materialize().asUint8List();
-  final (options, delegate) = litert.InterpreterFactory.create(
-    const litert.PerformanceConfig.gpu(),
-  );
+  // A bad photo throws here, before any fallback. Retrying would not help.
+  final input = TfliteClassifier.preprocess(photoBytes).reshape<Object>([
+    1,
+    TfliteClassifier.inputSize,
+    TfliteClassifier.inputSize,
+    3,
+  ]);
+  try {
+    return _run(
+      modelBytes,
+      input,
+      const litert.PerformanceConfig.xnnpack(numThreads: 4),
+    );
+  } on Object catch (error) {
+    stderr.writeln('FieldLens XNNPACK failed; retrying on CPU: $error');
+    return _run(modelBytes, input, litert.PerformanceConfig.disabled);
+  }
+}
+
+List<double> _run(
+  Uint8List modelBytes,
+  Object input,
+  litert.PerformanceConfig config,
+) {
+  final (options, delegate) = litert.InterpreterFactory.create(config);
   litert.Interpreter? interpreter;
-  var activeDelegate = delegate;
   try {
     interpreter = _createInterpreter(modelBytes, options);
-    final input = TfliteClassifier.preprocess(photoBytes).reshape<Object>([
-      1,
-      TfliteClassifier.inputSize,
-      TfliteClassifier.inputSize,
-      3,
-    ]);
     final output = [List<double>.filled(kClassLabels.length, 0)];
-    try {
-      interpreter.run(input, output);
-    } on Object catch (error, stackTrace) {
-      if (!interpreter.hasActiveDelegate) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-      stderr.writeln('FieldLens GPU inference failed; retrying on CPU: $error');
-      interpreter.close();
-      interpreter = null;
-      activeDelegate?.delete();
-      activeDelegate = null;
-      return _runOnCpu(modelBytes, input);
-    }
+    interpreter.run(input, output);
     return output.single;
   } finally {
     interpreter?.close();
-    activeDelegate?.delete();
+    delegate?.delete();
   }
 }
 
