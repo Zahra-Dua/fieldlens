@@ -6,6 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -93,6 +94,16 @@ export async function buildApp(): Promise<FastifyInstance> {
     uiConfig: {
       persistAuthorization: true,
     },
+  });
+    // A browser blocks a page from calling an API on another origin unless the
+  // API says it is allowed. The web dashboard runs on its own origin, so we
+  // list the origins that may call us (comma separated in WEB_ORIGINS).
+  await app.register(cors, {
+    origin: (process.env.WEB_ORIGINS ?? "http://localhost:5173")
+      .split(",")
+      .map((origin) => origin.trim()),
+    // The plugin only allows GET, HEAD and POST by default.
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
   // Global default; individual routes (like /auth/login) override this
