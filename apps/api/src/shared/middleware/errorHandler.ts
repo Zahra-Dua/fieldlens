@@ -46,7 +46,17 @@ export function errorHandler(
       },
     });
   }
-
+  // Errors from Fastify or its plugins (rate limit, bad JSON body, and so on)
+  // already carry a 4xx status. Keep that status instead of turning it into 500.
+  const statusCode = "statusCode" in error ? error.statusCode : undefined;
+  if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
+    return reply.status(statusCode).send({
+      error: {
+        code: statusCode === 429 ? "RATE_LIMITED" : "BAD_REQUEST",
+        message: error.message,
+      },
+    });
+  }
   // Anything else is unexpected — log it, but never leak internals to
   // the client (document §9.1: "fail loudly in development, gracefully
   // in production").
