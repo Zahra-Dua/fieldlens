@@ -8,4 +8,7 @@ abstract final class AppRoutes {
 
   /// Local inspection history.
   static const history = '/history';
+
+  /// App settings.
+  static const settings = '/settings';
 }

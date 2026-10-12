@@ -3,6 +3,7 @@ import 'package:fieldlens_app/features/auth/presentation/auth_notifier.dart';
 import 'package:fieldlens_app/features/auth/presentation/login_screen.dart';
 import 'package:fieldlens_app/features/capture/presentation/capture_screen.dart';
 import 'package:fieldlens_app/features/history/presentation/history_screen.dart';
+import 'package:fieldlens_app/features/settings/presentation/settings_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,6 +35,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.history,
         builder: (_, _) => const HistoryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (_, _) => const SettingsScreen(),
       ),
     ],
   );
