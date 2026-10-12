@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../../shared/middleware/auth";
-import { getLatestModelHandler } from "./models.controller";
+import { downloadModelHandler, getLatestModelHandler } from "./models.controller";
 
 const modelMetadataJsonSchema = {
   type: "object",
@@ -49,6 +49,7 @@ const errorJsonSchema = {
 export async function modelsRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { platform: "android" | "ios" } }>(
     "/models/latest",
+    
     {
       preHandler: [requireAuth],
       schema: {
@@ -74,5 +75,29 @@ export async function modelsRoutes(app: FastifyInstance) {
       },
     },
     getLatestModelHandler,
+  );
+    app.get<{ Params: { version: string } }>(
+    "/models/:version/download",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        tags: ["Models"],
+        summary: "Download a model file (the .tflite bytes)",
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: "object",
+          required: ["version"],
+          properties: { version: { type: "string" } },
+        },
+        response: {
+          400: errorJsonSchema,
+          401: errorJsonSchema,
+          404: errorJsonSchema,
+          502: errorJsonSchema,
+          503: errorJsonSchema,
+        },
+      },
+    },
+    downloadModelHandler,
   );
 }

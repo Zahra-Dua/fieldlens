@@ -138,4 +138,81 @@ describe("GET /models/latest", () => {
 
     expect(response.statusCode).toBe(401);
   });
+
+  
+  describe("GET /models/:version/download", () => {
+    const modelBytes = new Uint8Array([0x54, 0x46, 0x4c, 0x33, 1, 2, 3, 4]);
+
+    it("streams the model file from the ML service", async () => {
+      vi.stubEnv("ML_SERVICE_URL", "http://ml.internal:8000/");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response(modelBytes, { status: 200 })),
+      );
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/models/1.2.3/download",
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["content-type"]).toContain("application/octet-stream");
+      expect(response.rawPayload).toEqual(Buffer.from(modelBytes));
+      const call = vi.mocked(fetch).mock.calls.at(0);
+      if (!call) {
+        throw new Error("Expected the ML service to be called");
+      }
+      expect(new URL(call[0].toString()).pathname).toBe("/models/1.2.3/download");
+    });
+
+    it("rejects a version that is not semver without calling the ML service", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/models/not-a-version/download",
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 when the ML service does not have that version", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/models/9.9.9/download",
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json().error.code).toBe("MODEL_NOT_FOUND");
+    });
+
+    it("returns 503 when the ML service cannot be reached", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/models/1.2.3/download",
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json().error.code).toBe("ML_SERVICE_UNAVAILABLE");
+    });
+
+    it("requires an authenticated API client", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/models/1.2.3/download",
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
 });
