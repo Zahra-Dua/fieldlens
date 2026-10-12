@@ -11,6 +11,8 @@ import 'package:fieldlens_app/features/capture/data/platform_permission_gateway.
 import 'package:fieldlens_app/features/capture/domain/image_processor.dart';
 import 'package:fieldlens_app/features/capture/domain/metadata_gateway.dart';
 import 'package:fieldlens_app/features/capture/domain/permission_gateway.dart';
+import 'package:fieldlens_app/features/classify/data/model_update_service.dart';
+import 'package:fieldlens_app/features/classify/data/tflite_classifier.dart';
 import 'package:fieldlens_app/features/history/data/inspection_dao.dart';
 import 'package:fieldlens_app/features/sync/data/api_sync_remote.dart';
 import 'package:fieldlens_app/features/sync/data/device_identity.dart';
@@ -19,6 +21,7 @@ import 'package:fieldlens_app/features/sync/data/sync_worker.dart';
 import 'package:fieldlens_app/features/sync/domain/connectivity_gateway.dart';
 import 'package:fieldlens_app/features/sync/domain/sync_remote.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Build-time configuration.
 final appConfigProvider = Provider<AppConfig>(
@@ -100,3 +103,28 @@ final syncWorkerProvider = Provider<SyncWorker>(
     connectivity: ref.watch(connectivityGatewayProvider),
   ),
 );
+
+/// Loads preferences used to persist the active model version.
+final sharedPreferencesProvider = FutureProvider<SharedPreferences>(
+  (ref) => SharedPreferences.getInstance(),
+);
+
+/// Creates the OTA model updater with the authenticated API client.
+final modelUpdateServiceProvider = FutureProvider<ModelUpdateService>((
+  ref,
+) async {
+  final preferences = await ref.watch(sharedPreferencesProvider.future);
+  return ModelUpdateService(
+    apiClient: ref.watch(apiClientProvider),
+    preferences: preferences,
+  );
+});
+
+/// The model version the app is using right now.
+final activeModelVersionProvider = FutureProvider<String>((ref) async {
+  final updater = await ref.watch(modelUpdateServiceProvider.future);
+  final version = await updater.activeModelVersion(
+    TfliteClassifier.bundledModelVersion,
+  );
+  return version;
+});
