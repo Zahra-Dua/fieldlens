@@ -72,7 +72,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
 
-      <Route element={<ProtectedRoute />}>
+      <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
         <Route path="/dashboard" element={<DashboardPage />} />
       </Route>
 
