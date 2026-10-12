@@ -78,6 +78,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
           ),
           const DebugAuthCheckButton(),
           IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () => context.go(AppRoutes.settings),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () =>
                 unawaited(ref.read(authProvider.notifier).signOut()),

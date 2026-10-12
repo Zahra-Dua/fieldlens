@@ -80,3 +80,42 @@ export async function getLatestModel(
 
   return metadata.data;
 }
+
+const ML_DOWNLOAD_TIMEOUT_MS = 30_000;
+
+export async function downloadModel(
+  version: string,
+  logger: FastifyBaseLogger,
+): Promise<Buffer> {
+  const baseUrl = process.env.ML_SERVICE_URL ?? "http://127.0.0.1:8000";
+  const url = new URL(`/models/${version}/download`, baseUrl);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(ML_DOWNLOAD_TIMEOUT_MS),
+    });
+  } catch (error) {
+    logger.error({ err: error, version }, "Could not reach the ML service");
+    throw new AppError(
+      "ML_SERVICE_UNAVAILABLE",
+      "The ML service is unavailable",
+      503,
+    );
+  }
+
+  if (response.status === 404) {
+    throw new AppError("MODEL_NOT_FOUND", `Model ${version} does not exist`, 404);
+  }
+  if (!response.ok) {
+    logger.error({ statusCode: response.status, version }, "ML download failed");
+    throw new AppError(
+      response.status >= 500 ? "ML_SERVICE_UNAVAILABLE" : "ML_SERVICE_ERROR",
+      "The ML service could not provide the model file",
+      response.status >= 500 ? 503 : 502,
+    );
+  }
+
+  // Model files are a few MB, so holding one in memory is fine.
+  return Buffer.from(await response.arrayBuffer());
+}

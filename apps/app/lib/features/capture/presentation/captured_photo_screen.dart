@@ -48,8 +48,21 @@ class _CapturedPhotoScreenState extends ConsumerState<CapturedPhotoScreen> {
     });
     try {
       final photoBytes = await File(widget.imagePath).readAsBytes();
+
+      String? modelPath;
+      try {
+        final updater = await ref.read(modelUpdateServiceProvider.future);
+        modelPath = await updater.activeModelPath();
+      } on Object catch (error, stackTrace) {
+        debugPrint(
+          'Could not find the active model; using the bundled model: $error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
+      }
+
       final classification = await TfliteClassifier.classifyInBackground(
         photoBytes,
+        modelPath: modelPath,
       );
       final imagePath = await ref
           .read(imageProcessorProvider)

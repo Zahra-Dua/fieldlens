@@ -16,28 +16,45 @@ import 'package:image/image.dart' as img;
 class TfliteClassifier {
   TfliteClassifier._(this._interpreter);
 
-  /// Bundled float32 model; the model card does not recommend full int8.
+  /// Bundled model asset (float16, the production variant: docs/adr/0014).
   static const modelAsset = 'assets/models/fieldlens_float16.tflite';
+
+  /// Version of the bundled model. An OTA model must be newer than this.
+  static const bundledModelVersion = '1.0.0';
 
   /// Required model input width and height.
   static const inputSize = 224;
 
   final litert.Interpreter _interpreter;
 
-  /// Loads the bundled model and classifies [photoBytes] off the UI isolate.
-  ///
-  /// Loads the bundled model and classifies [photoBytes] off the UI isolate.
+  /// Loads the active model and classifies [photoBytes] off the UI isolate.
   ///
   /// The model runs with XNNPACK (the fastest option on the phone we measured,
   /// see docs/benchmark.md). If that fails, it is retried once on the plain CPU.
+  /// Uses the bundled model when [modelPath] is not provided.
   static Future<Classification> classifyInBackground(
-    Uint8List photoBytes,
-  ) async {
+    Uint8List photoBytes, {
+    String? modelPath,
+  }) async {
+    if (modelPath != null) {
+      try {
+        final downloaded = await File(modelPath).readAsBytes();
+        return await _classify(photoBytes, downloaded);
+      } on Object catch (error) {
+        debugPrint('Downloaded model failed; using the bundled model: $error');
+      }
+    }
     final asset = await rootBundle.load(modelAsset);
-    final modelBytes = asset.buffer.asUint8List(
-      asset.offsetInBytes,
-      asset.lengthInBytes,
+    return await _classify(
+      photoBytes,
+      asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
     );
+  }
+
+  static Future<Classification> _classify(
+    Uint8List photoBytes,
+    Uint8List modelBytes,
+  ) async {
     final scores = await compute<_InferenceMessage, List<double>>(
       _runInference,
       _InferenceMessage(
@@ -213,19 +230,5 @@ litert.Interpreter _createInterpreter(
     return litert.Interpreter.fromBuffer(modelBytes, options: options);
   } finally {
     options.delete();
-  }
-}
-
-List<double> _runOnCpu(Uint8List modelBytes, Object input) {
-  final (options, _) = litert.InterpreterFactory.create(
-    litert.PerformanceConfig.disabled,
-  );
-  final interpreter = _createInterpreter(modelBytes, options);
-  try {
-    final output = [List<double>.filled(kClassLabels.length, 0)];
-    interpreter.run(input, output);
-    return output.single;
-  } finally {
-    interpreter.close();
   }
 }
