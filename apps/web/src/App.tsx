@@ -4,6 +4,8 @@ import { useAuth } from "./features/auth/auth-context";
 import ProtectedRoute from "./features/auth/ProtectedRoute";
 import { getErrorMessage } from "./lib/apiClient";
 import LoginPage from "./pages/LoginPage";
+import InspectionsPage from "./pages/InspectionsPage";
+import AppLayout from "./components/AppLayout";
 
 function LoginRoute() {
   const { isAuthenticated, isRestoring } = useAuth();
@@ -24,11 +26,10 @@ function LoginRoute() {
 }
 
 function DashboardPage() {
-  const { logout, isLoggingOut, logoutError, currentUser, isLoadingCurrentUser, currentUserError } =
-    useAuth();
+  const { currentUser, isLoadingCurrentUser, currentUserError } = useAuth();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-4">
+    <div className="flex flex-col items-center gap-4 py-12">
       <h1 className="text-3xl font-semibold text-slate-800">Signed in to FieldLens</h1>
 
       {isLoadingCurrentUser && <p className="text-slate-600">Loading your profile...</p>}
@@ -46,24 +47,7 @@ function DashboardPage() {
           <p>Role: {currentUser.role}</p>
         </section>
       )}
-
-      <button
-        type="button"
-        onClick={() => {
-          logout();
-        }}
-        disabled={isLoggingOut}
-        className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isLoggingOut ? "Signing out..." : "Sign out"}
-      </button>
-
-      {logoutError !== null && (
-        <p role="alert" className="text-sm text-red-700">
-          Server logout request failed. You have been signed out on this device.
-        </p>
-      )}
-    </main>
+    </div>
   );
 }
 
@@ -73,9 +57,11 @@ function AppRoutes() {
       <Route path="/login" element={<LoginRoute />} />
 
       <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/inspections" element={<InspectionsPage />} />
+        </Route>
       </Route>
-
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
