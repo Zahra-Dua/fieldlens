@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../database/prisma";
 import { AppError } from "../../shared/errors/AppError";
-import { uploadToMinio } from "../../shared/storage/minio";
+import { getFromMinio, uploadToMinio } from "../../shared/storage/minio";
 import type { MultipartFile } from "@fastify/multipart";
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -89,6 +89,36 @@ export class UploadsService {
       fileSize: stored.fileSize,
     };
   }
+    async getInspectionImage(
+    inspectionId: string,
+    imageId: string,
+    userId: string,
+    userRole: "ADMIN" | "FIELD_WORKER"
+  ) {
+    const image = await prisma.inspectionImage.findFirst({
+      where: { id: imageId, inspectionId },
+      include: { inspection: { select: { userId: true } } },
+    });
+
+    if (!image) {
+      throw new AppError("IMAGE_NOT_FOUND", "Image not found", 404);
+    }
+    if (userRole !== "ADMIN" && image.inspection.userId !== userId) {
+      throw new AppError("FORBIDDEN", "You do not have access to this inspection", 403);
+    }
+
+    try {
+      const stream = await getFromMinio(image.objectKey);
+      return { stream, mimeType: image.mimeType };
+    } catch (error) {
+      // The row exists but the file is gone from storage.
+      if (error instanceof Error && "code" in error && error.code === "NoSuchKey") {
+        throw new AppError("IMAGE_NOT_FOUND", "Image file not found", 404);
+      }
+      throw error;
+    }
+  }
 }
+
 
 export const uploadsService = new UploadsService();

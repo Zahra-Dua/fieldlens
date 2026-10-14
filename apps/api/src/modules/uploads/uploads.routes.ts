@@ -1,6 +1,6 @@
 import multipart from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
-import { uploadInspectionImageHandler } from "./uploads.controller";
+import { getInspectionImageHandler, uploadInspectionImageHandler } from "./uploads.controller";
 import { requireAuth } from "../../shared/middleware/auth";
 
 export async function uploadsRoutes(app: FastifyInstance) {
@@ -16,4 +16,10 @@ export async function uploadsRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth] },
     uploadInspectionImageHandler
   );
+    app.get<{ Params: { id: string; imageId: string } }>(
+    "/inspections/:id/images/:imageId",
+    { preHandler: [requireAuth] },
+    getInspectionImageHandler
+  );
 }
+

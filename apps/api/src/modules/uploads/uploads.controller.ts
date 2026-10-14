@@ -26,3 +26,20 @@ export async function uploadInspectionImageHandler(
 
   return reply.status(201).send(result);
 }
+
+export async function getInspectionImageHandler(
+  request: FastifyRequest<{ Params: { id: string; imageId: string } }>,
+  reply: FastifyReply
+) {
+  const { stream, mimeType } = await uploadsService.getInspectionImage(
+    request.params.id,
+    request.params.imageId,
+    request.user!.sub,
+    request.user!.role
+  );
+
+  return reply
+    .header("Content-Type", mimeType)
+    .header("Cache-Control", "private, max-age=3600")
+    .send(stream);
+}
