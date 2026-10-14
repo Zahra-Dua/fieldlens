@@ -26,5 +26,7 @@ export async function uploadToMinio(objectKey: string, buffer: Buffer, mimeType:
     "Content-Type": mimeType,
   });
 }
-
+export async function getFromMinio(objectKey: string) {
+  return minioClient.getObject(bucket, objectKey);
+}
 export { bucket as MINIO_BUCKET };

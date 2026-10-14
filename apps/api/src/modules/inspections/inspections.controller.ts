@@ -6,6 +6,7 @@ import { inspectionsService } from "./inspections.service";
 import {
   createInspectionsSchema,
   listInspectionsQuerySchema,
+  statsInspectionsQuerySchema,
 } from "./inspections.schemas";
 
 export async function createInspectionsHandler(
@@ -48,4 +49,27 @@ export async function deleteInspectionHandler(
 ) {
   await inspectionsService.deleteById(request.params.id);
   return reply.status(204).send();
+}
+
+export async function statsInspectionsHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const query = statsInspectionsQuerySchema.parse(request.query);
+  const result = await inspectionsService.stats(
+    request.user!.sub,
+    request.user!.role,
+    query
+  );
+  return reply.status(200).send(result);
+}
+export async function listInspectionDevicesHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const devices = await inspectionsService.listDevices(
+    request.user!.sub,
+    request.user!.role
+  );
+  return reply.status(200).send(devices);
 }

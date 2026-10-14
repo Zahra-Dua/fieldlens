@@ -65,17 +65,43 @@ export const createInspectionsSchema = z
 
 // Query params for GET /inspections — all optional, all filters combine
 // with AND when present.
+const WASTE_CLASSES = ["PLASTIC", "GLASS", "METAL", "PAPER", "ORGANIC"] as const;
+
 export const listInspectionsQuerySchema = z
   .object({
     page: z.coerce.number().int().positive().default(1),
     pageSize: z.coerce.number().int().positive().max(100).default(20),
-    label: z.enum(["PLASTIC", "GLASS", "METAL", "PAPER", "ORGANIC"]).optional(),
+    label: z.enum(WASTE_CLASSES).optional(),
     deviceId: z.string().uuid().optional(),
     dateFrom: z.coerce.date().optional(),
     dateTo: z.coerce.date().optional(),
     minConfidence: z.coerce.number().min(0).max(1).optional(),
+    maxConfidence: z.coerce.number().min(0).max(1).optional(),
+    sortBy: z.enum(["capturedAt", "confidence", "label", "status"]).default("capturedAt"),
+    sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  })
+  .strict()
+  .refine(
+    (q) =>
+      q.minConfidence === undefined ||
+      q.maxConfidence === undefined ||
+      q.minConfidence <= q.maxConfidence,
+    { message: "minConfidence must not be above maxConfidence" }
+  );
+
+// Same filters as the list, without paging and sorting.
+export const statsInspectionsQuerySchema = z
+  .object({
+    label: z.enum(WASTE_CLASSES).optional(),
+    deviceId: z.string().uuid().optional(),
+    dateFrom: z.coerce.date().optional(),
+    dateTo: z.coerce.date().optional(),
+    minConfidence: z.coerce.number().min(0).max(1).optional(),
+    maxConfidence: z.coerce.number().min(0).max(1).optional(),
   })
   .strict();
+
+export type StatsInspectionsQuery = z.infer<typeof statsInspectionsQuerySchema>;
 
 export type CreateInspectionsInput = z.infer<typeof createInspectionsSchema>;
 export type ListInspectionsQuery = z.infer<typeof listInspectionsQuerySchema>;

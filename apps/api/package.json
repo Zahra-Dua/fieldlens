@@ -9,6 +9,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx prisma/seed.ts",
+    "seed:demo": "tsx prisma/seed-demo.ts",
     "migrate": "prisma migrate dev",
     "test:watch": "vitest",
     "lint": "eslint ."
