@@ -1,20 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import type { InspectionFilters } from "./filters";
+import { fetchDevices } from "./api";
+import { NO_FILTERS, type InspectionFilters } from "./filters";
 import { WASTE_CLASSES } from "./types";
 
 interface FilterBarProps {
   filters: InspectionFilters;
   onApply: (changes: Partial<InspectionFilters>) => void;
 }
-
-const NO_FILTERS: Partial<InspectionFilters> = {
-  label: null,
-  dateFrom: null,
-  dateTo: null,
-  minConf: null,
-  maxConf: null,
-  page: 1,
-};
 
 // Empty box means "no limit". Anything else must be a whole number 0 to 100.
 function parsePercent(text: string): number | null | "invalid" {
@@ -35,11 +28,19 @@ const inputClass =
  */
 export default function FilterBar({ filters, onApply }: FilterBarProps) {
   const [label, setLabel] = useState(filters.label ?? "");
+  const [deviceId, setDeviceId] = useState(filters.deviceId ?? "");
   const [dateFrom, setDateFrom] = useState(filters.dateFrom ?? "");
   const [dateTo, setDateTo] = useState(filters.dateTo ?? "");
   const [minConf, setMinConf] = useState(filters.minConf?.toString() ?? "");
   const [maxConf, setMaxConf] = useState(filters.maxConf?.toString() ?? "");
   const [error, setError] = useState<string | null>(null);
+
+  // The list of devices rarely changes, so it is kept for 5 minutes.
+  const devices = useQuery({
+    queryKey: ["inspections", "devices"],
+    queryFn: ({ signal }) => fetchDevices(signal),
+    staleTime: 5 * 60_000,
+  });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,6 +64,7 @@ export default function FilterBar({ filters, onApply }: FilterBarProps) {
     setError(null);
     onApply({
       label: WASTE_CLASSES.find((item) => item === label) ?? null,
+      deviceId: deviceId === "" ? null : deviceId,
       dateFrom: dateFrom === "" ? null : dateFrom,
       dateTo: dateTo === "" ? null : dateTo,
       minConf: min,
@@ -82,7 +84,7 @@ export default function FilterBar({ filters, onApply }: FilterBarProps) {
       className="rounded-xl border border-slate-200 bg-white p-4"
       aria-label="Filter inspections"
     >
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <label className="space-y-1">
           <span className="text-xs font-medium text-slate-600">Label</span>
           <select
@@ -96,6 +98,31 @@ export default function FilterBar({ filters, onApply }: FilterBarProps) {
             {WASTE_CLASSES.map((item) => (
               <option key={item} value={item}>
                 {item}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1">
+          <span className="text-xs font-medium text-slate-600">Device</span>
+          <select
+            value={deviceId}
+            disabled={devices.isPending}
+            onChange={(event) => {
+              setDeviceId(event.target.value);
+            }}
+            className={inputClass}
+          >
+            <option value="">
+              {devices.isPending
+                ? "Loading devices..."
+                : devices.isError
+                  ? "All devices (list unavailable)"
+                  : "All devices"}
+            </option>
+            {devices.data?.map((device) => (
+              <option key={device.id} value={device.id}>
+                {device.name ?? device.id.slice(0, 8)} ({device.platform})
               </option>
             ))}
           </select>

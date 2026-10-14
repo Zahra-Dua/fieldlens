@@ -1,8 +1,9 @@
-import { Link } from "react-router";
-import { formatDateTime, formatPercent } from "./format";
+import { Link, useLocation } from "react-router";
+import ConfidenceBar from "./ConfidenceBar";
+import { formatDateTime } from "./format";
 import type { InspectionFilters } from "./filters";
 import LabelBadge from "./LabelBadge";
-import { LOW_CONFIDENCE_THRESHOLD, type Inspection, type SortBy } from "./types";
+import type { Inspection, SortBy } from "./types";
 
 interface InspectionsTableProps {
   rows: Inspection[];
@@ -41,25 +42,10 @@ function SortHeader({ title, column, filters, onSort }: SortHeaderProps) {
   );
 }
 
-function Confidence({ value }: { value: number }) {
-  const low = value < LOW_CONFIDENCE_THRESHOLD;
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 rounded-full bg-slate-200" aria-hidden="true">
-        <div
-          className={`h-1.5 rounded-full ${low ? "bg-amber-500" : "bg-emerald-500"}`}
-          style={{ width: `${value * 100}%` }}
-        />
-      </div>
-      <span className={low ? "font-medium text-amber-700" : "text-slate-700"}>
-        {formatPercent(value)}
-      </span>
-    </div>
-  );
-}
-
 export default function InspectionsTable({ rows, filters, onSort }: InspectionsTableProps) {
+  // The detail page uses this to send the admin back to the same filters.
+  const { search } = useLocation();
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[48rem] text-sm">
@@ -92,6 +78,7 @@ export default function InspectionsTable({ rows, filters, onSort }: InspectionsT
                 <td className="whitespace-nowrap px-4">
                   <Link
                     to={`/inspections/${row.id}`}
+                    state={{ search }}
                     className="font-medium text-slate-900 hover:underline"
                   >
                     {formatDateTime(row.capturedAt)}
@@ -108,7 +95,7 @@ export default function InspectionsTable({ rows, filters, onSort }: InspectionsT
                   {prediction === undefined ? (
                     <span className="text-slate-400">-</span>
                   ) : (
-                    <Confidence value={Number(prediction.confidence)} />
+                    <ConfidenceBar value={Number(prediction.confidence)} />
                   )}
                 </td>
                 <td className="px-4">

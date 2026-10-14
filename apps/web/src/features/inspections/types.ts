@@ -50,3 +50,14 @@ export interface InspectionPage {
   total: number;
   totalPages: number;
 }
+export interface InspectionStats {
+  overTime: { date: string; count: number }[];
+  distribution: { label: WasteClass; count: number }[];
+  confidenceHistogram: { from: number; to: number; count: number }[];
+  lowConfidence: {
+    threshold: number;
+    total: number;
+    count: number;
+    share: number;
+  };
+}

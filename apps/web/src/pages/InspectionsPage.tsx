@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "../lib/apiClient";
 import { fetchInspections } from "../features/inspections/api";
-import { filterKey, hasActiveFilters } from "../features/inspections/filters";
+import { filterKey, hasActiveFilters, NO_FILTERS } from "../features/inspections/filters";
 import FilterBar from "../features/inspections/FilterBar";
 import InspectionsTable from "../features/inspections/InspectionsTable";
 import Pagination from "../features/inspections/Pagination";
@@ -77,14 +77,7 @@ export default function InspectionsPage() {
           action={{
             label: "Clear filters",
             onClick: () => {
-              update({
-                label: null,
-                dateFrom: null,
-                dateTo: null,
-                minConf: null,
-                maxConf: null,
-                page: 1,
-              });
+              update(NO_FILTERS);
             },
           }}
         />

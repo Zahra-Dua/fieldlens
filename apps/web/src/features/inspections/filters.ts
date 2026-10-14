@@ -7,6 +7,7 @@ export interface InspectionFilters {
   sortBy: SortBy;
   sortOrder: SortOrder;
   label: WasteClass | null;
+  deviceId: string | null;
   /** A day, written YYYY-MM-DD. */
   dateFrom: string | null;
   dateTo: string | null;
@@ -27,6 +28,10 @@ function parseDay(value: string | null): string | null {
   return value !== null && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
+function parseDeviceId(value: string | null): string | null {
+  return value !== null && /^[0-9a-fA-F-]{36}$/.test(value) ? value : null;
+}
+
 /**
  * Reads the filters from the page address. Anything that is not valid is
  * ignored, so a hand-edited address can never break the page.
@@ -40,6 +45,7 @@ export function parseFilters(params: URLSearchParams): InspectionFilters {
     sortBy,
     sortOrder,
     label: WASTE_CLASSES.find((label) => label === params.get("label")) ?? null,
+    deviceId: parseDeviceId(params.get("device")),
     dateFrom: parseDay(params.get("from")),
     dateTo: parseDay(params.get("to")),
     minConf: parseInteger(params.get("minConf"), 0, 100),
@@ -55,6 +61,7 @@ export function serializeFilters(filters: InspectionFilters): URLSearchParams {
   if (filters.sortBy !== "capturedAt") params.set("sortBy", filters.sortBy);
   if (filters.sortOrder !== "desc") params.set("sortOrder", filters.sortOrder);
   if (filters.label !== null) params.set("label", filters.label);
+  if (filters.deviceId !== null) params.set("device", filters.deviceId);
   if (filters.dateFrom !== null) params.set("from", filters.dateFrom);
   if (filters.dateTo !== null) params.set("to", filters.dateTo);
   if (filters.minConf !== null) params.set("minConf", String(filters.minConf));
@@ -63,9 +70,21 @@ export function serializeFilters(filters: InspectionFilters): URLSearchParams {
   return params;
 }
 
+/** The filter values that mean "show everything". */
+export const NO_FILTERS: Partial<InspectionFilters> = {
+  label: null,
+  deviceId: null,
+  dateFrom: null,
+  dateTo: null,
+  minConf: null,
+  maxConf: null,
+  page: 1,
+};
+
 export function hasActiveFilters(filters: InspectionFilters): boolean {
   return (
     filters.label !== null ||
+    filters.deviceId !== null ||
     filters.dateFrom !== null ||
     filters.dateTo !== null ||
     filters.minConf !== null ||
@@ -75,7 +94,12 @@ export function hasActiveFilters(filters: InspectionFilters): boolean {
 
 /** Changes whenever a filter (not the page or the sorting) changes. */
 export function filterKey(filters: InspectionFilters): string {
-  return [filters.label, filters.dateFrom, filters.dateTo, filters.minConf, filters.maxConf].join(
-    "|",
-  );
+  return [
+    filters.label,
+    filters.deviceId,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.minConf,
+    filters.maxConf,
+  ].join("|");
 }
