@@ -2,11 +2,90 @@
 // filtered/paginated listing, single fetch, and admin-only delete.
 
 import { prisma } from "../../database/prisma";
+import { Prisma } from "../../generated/prisma/client";
 import { AppError } from "../../shared/errors/AppError";
 import type {
   CreateInspectionsInput,
   ListInspectionsQuery,
+  StatsInspectionsQuery,
 } from "./inspections.schemas";
+
+type Role = "ADMIN" | "FIELD_WORKER";
+
+// A prediction below this confidence counts as "low confidence" in the
+// dashboard stats. Keep it equal to kConfidenceThreshold in the Flutter app.
+export const LOW_CONFIDENCE_THRESHOLD = 0.6;
+
+// The filters that the list and the stats endpoints share.
+interface ScopeFilters {
+  deviceId?: string | undefined;
+  dateFrom?: Date | undefined;
+  dateTo?: Date | undefined;
+  label?: string | undefined;
+  minConfidence?: number | undefined;
+  maxConfidence?: number | undefined;
+}
+
+// Every inspection joined with its newest prediction (or nothing, when it has
+// none). The table and the charts both read from this, so they always agree.
+const FROM_LATEST_PREDICTION = Prisma.sql`
+  FROM inspections i
+  LEFT JOIN LATERAL (
+    SELECT "predictedClass", confidence
+    FROM predictions
+    WHERE "inspectionId" = i.id
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  ) p ON true
+`;
+
+// The user can only pick a key from this list, so no user text ever reaches
+// the SQL as a column name.
+const SORT_COLUMNS = {
+  capturedAt: Prisma.sql`i."capturedAt"`,
+  confidence: Prisma.sql`p.confidence`,
+  label: Prisma.sql`p."predictedClass"::text`,
+  status: Prisma.sql`i.status::text`,
+} as const;
+
+function buildConditions(
+  userId: string,
+  role: Role,
+  filters: ScopeFilters
+): Prisma.Sql[] {
+  const conditions: Prisma.Sql[] = [];
+
+  // FIELD_WORKERs only ever see their own inspections; ADMINs see all.
+  if (role !== "ADMIN") {
+    conditions.push(Prisma.sql`i."userId" = ${userId}`);
+  }
+  if (filters.deviceId !== undefined) {
+    conditions.push(Prisma.sql`i."deviceId" = ${filters.deviceId}`);
+  }
+  if (filters.dateFrom !== undefined) {
+    conditions.push(Prisma.sql`i."capturedAt" >= ${filters.dateFrom}::timestamp`);
+  }
+  if (filters.dateTo !== undefined) {
+    conditions.push(Prisma.sql`i."capturedAt" <= ${filters.dateTo}::timestamp`);
+  }
+  if (filters.label !== undefined) {
+    conditions.push(Prisma.sql`p."predictedClass" = ${filters.label}::"WasteClass"`);
+  }
+  if (filters.minConfidence !== undefined) {
+    conditions.push(Prisma.sql`p.confidence >= ${filters.minConfidence}::numeric`);
+  }
+  if (filters.maxConfidence !== undefined) {
+    conditions.push(Prisma.sql`p.confidence <= ${filters.maxConfidence}::numeric`);
+  }
+
+  return conditions;
+}
+
+function whereClause(conditions: Prisma.Sql[]): Prisma.Sql {
+  return conditions.length > 0
+    ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+    : Prisma.empty;
+}
 
 export class InspectionsService {
   // ── Bulk create — the idempotent upsert ──────────────────────
@@ -63,48 +142,53 @@ export class InspectionsService {
     );
   }
 
-  // ── List — paginated, filtered ────────────────────────────────
-  // FIELD_WORKERs only ever see their own inspections; ADMINs see all.
+  // ── List — paginated, filtered, sorted ────────────────────────
+  // Filtering, sorting and paging all happen in the database, so page 2 is
+  // really page 2 of the filtered result, not of the unfiltered data.
+  // Sorting by the prediction's confidence or label needs a join, which
+  // Prisma's own orderBy cannot do for a one-to-many relation. So we pick the
+  // ids with SQL, then load the full rows with Prisma.
   async list(
     requestingUserId: string,
-    requestingUserRole: "ADMIN" | "FIELD_WORKER",
+    requestingUserRole: Role,
     query: ListInspectionsQuery
   ) {
-    const where: Record<string, unknown> = {};
+    const where = whereClause(
+      buildConditions(requestingUserId, requestingUserRole, query)
+    );
+    const orderColumn = SORT_COLUMNS[query.sortBy];
+    const direction =
+      query.sortOrder === "asc" ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+    const offset = (query.page - 1) * query.pageSize;
 
-    if (requestingUserRole !== "ADMIN") {
-      where.userId = requestingUserId;
-    }
-    if (query.deviceId) {
-      where.deviceId = query.deviceId;
-    }
-    if (query.dateFrom || query.dateTo) {
-      where.capturedAt = {
-        ...(query.dateFrom && { gte: query.dateFrom }),
-        ...(query.dateTo && { lte: query.dateTo }),
-      };
-    }
-    if (query.label || query.minConfidence !== undefined) {
-      where.predictions = {
-        some: {
-          ...(query.label && { predictedClass: query.label }),
-          ...(query.minConfidence !== undefined && {
-            confidence: { gte: query.minConfidence },
-          }),
-        },
-      };
-    }
-
-    const [total, data] = await Promise.all([
-      prisma.inspection.count({ where }),
-      prisma.inspection.findMany({
-        where,
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        orderBy: { capturedAt: "desc" },
-        include: { predictions: true, images: true },
-      }),
+    const [countRows, idRows] = await Promise.all([
+      prisma.$queryRaw<{ total: number }[]>`
+        SELECT COUNT(*)::int AS total ${FROM_LATEST_PREDICTION} ${where}`,
+      // "i.id" is the last sort key, so rows with equal values keep a stable
+      // order and no row is skipped or repeated between pages.
+      prisma.$queryRaw<{ id: string }[]>`
+        SELECT i.id ${FROM_LATEST_PREDICTION} ${where}
+        ORDER BY ${orderColumn} ${direction} NULLS LAST, i.id ASC
+        LIMIT ${query.pageSize} OFFSET ${offset}`,
     ]);
+
+    const total = countRows[0]?.total ?? 0;
+    const ids = idRows.map((row) => row.id);
+
+    const rows = await prisma.inspection.findMany({
+      where: { id: { in: ids } },
+      include: {
+        predictions: true,
+        images: true,
+        device: { select: { id: true, name: true, platform: true } },
+      },
+    });
+
+    // findMany does not keep the order of the ids, so put it back.
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const data = ids
+      .map((id) => byId.get(id))
+      .filter((row): row is NonNullable<typeof row> => row !== undefined);
 
     return {
       data,
@@ -112,6 +196,73 @@ export class InspectionsService {
       pageSize: query.pageSize,
       total,
       totalPages: Math.ceil(total / query.pageSize),
+    };
+  }
+
+  // ── Stats — the numbers behind the dashboard charts ───────────
+  // Grouped in the database, so it stays fast with many inspections.
+  async stats(
+    requestingUserId: string,
+    requestingUserRole: Role,
+    query: StatsInspectionsQuery
+  ) {
+    const base = buildConditions(requestingUserId, requestingUserRole, query);
+    // The class and confidence charts only make sense for rows that have a
+    // prediction.
+    const withPrediction = whereClause([
+      ...base,
+      Prisma.sql`p.confidence IS NOT NULL`,
+    ]);
+    const all = whereClause(base);
+
+    const [overTimeRows, distributionRows, histogramRows, lowRows] =
+      await Promise.all([
+        prisma.$queryRaw<{ day: string; count: number }[]>`
+          SELECT to_char(date_trunc('day', i."capturedAt"), 'YYYY-MM-DD') AS day,
+                 COUNT(*)::int AS count
+          ${FROM_LATEST_PREDICTION} ${all}
+          GROUP BY 1 ORDER BY 1`,
+        prisma.$queryRaw<{ label: string; count: number }[]>`
+          SELECT p."predictedClass"::text AS label, COUNT(*)::int AS count
+          ${FROM_LATEST_PREDICTION} ${withPrediction}
+          GROUP BY 1 ORDER BY 2 DESC, 1 ASC`,
+        prisma.$queryRaw<{ bucket: number; count: number }[]>`
+          SELECT LEAST(FLOOR(p.confidence * 10), 9)::int AS bucket,
+                 COUNT(*)::int AS count
+          ${FROM_LATEST_PREDICTION} ${withPrediction}
+          GROUP BY 1 ORDER BY 1`,
+        prisma.$queryRaw<{ total: number; low: number }[]>`
+          SELECT COUNT(*)::int AS total,
+                 COUNT(*) FILTER (
+                   WHERE p.confidence < ${LOW_CONFIDENCE_THRESHOLD}::numeric
+                 )::int AS low
+          ${FROM_LATEST_PREDICTION} ${withPrediction}`,
+      ]);
+
+    // Always return all 10 buckets, even the empty ones, so the chart
+    // does not have to fill gaps.
+    const countByBucket = new Map(
+      histogramRows.map((row) => [row.bucket, row.count])
+    );
+    const confidenceHistogram = Array.from({ length: 10 }, (_, bucket) => ({
+      from: bucket / 10,
+      to: (bucket + 1) / 10,
+      count: countByBucket.get(bucket) ?? 0,
+    }));
+
+    const total = lowRows[0]?.total ?? 0;
+    const low = lowRows[0]?.low ?? 0;
+
+    return {
+      overTime: overTimeRows.map((row) => ({ date: row.day, count: row.count })),
+      distribution: distributionRows,
+      confidenceHistogram,
+      lowConfidence: {
+        threshold: LOW_CONFIDENCE_THRESHOLD,
+        total,
+        count: low,
+        share: total > 0 ? low / total : 0,
+      },
     };
   }
 
@@ -123,7 +274,11 @@ export class InspectionsService {
   ) {
     const inspection = await prisma.inspection.findUnique({
       where: { id },
-      include: { predictions: true, images: true },
+      include: {
+        predictions: true,
+        images: true,
+        device: { select: { id: true, name: true, platform: true } },
+      },
     });
 
     if (!inspection) {
