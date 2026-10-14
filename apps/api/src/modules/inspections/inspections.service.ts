@@ -290,6 +290,15 @@ export class InspectionsService {
 
     return inspection;
   }
+    // ── Devices for the dashboard's device filter ─────────────────
+  // Admins see every device; a field worker sees only their own.
+  async listDevices(requestingUserId: string, requestingUserRole: Role) {
+    return prisma.device.findMany({
+      where: requestingUserRole === "ADMIN" ? {} : { userId: requestingUserId },
+      select: { id: true, name: true, platform: true },
+      orderBy: [{ name: "asc" }, { createdAt: "asc" }],
+    });
+  }
 
   // ── Delete — route-level requireRole("ADMIN") already enforces this
   // is admin-only; this method just does the deletion.

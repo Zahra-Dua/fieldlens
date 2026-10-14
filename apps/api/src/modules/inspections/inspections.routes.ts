@@ -5,6 +5,7 @@ import {
   getInspectionHandler,
   deleteInspectionHandler,
   statsInspectionsHandler,
+  listInspectionDevicesHandler,
 } from "./inspections.controller";
 import { requireAuth, requireRole } from "../../shared/middleware/auth";
 
@@ -25,7 +26,11 @@ export async function inspectionsRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth] },
     statsInspectionsHandler
   );
-
+  app.get(
+    "/inspections/devices",
+    { preHandler: [requireAuth] },
+    listInspectionDevicesHandler
+  );
   app.get<{ Params: { id: string } }>(
     "/inspections/:id",
     { preHandler: [requireAuth] },

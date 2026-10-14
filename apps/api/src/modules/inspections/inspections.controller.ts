@@ -63,3 +63,13 @@ export async function statsInspectionsHandler(
   );
   return reply.status(200).send(result);
 }
+export async function listInspectionDevicesHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const devices = await inspectionsService.listDevices(
+    request.user!.sub,
+    request.user!.role
+  );
+  return reply.status(200).send(devices);
+}

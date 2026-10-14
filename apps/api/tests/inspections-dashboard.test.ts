@@ -180,4 +180,12 @@ describe("Inspections dashboard queries", () => {
     expect(response.status).toBe(200);
     expect(response.body.lowConfidence.total).toBe(3);
   });
+    it("lists the devices for the device filter", async () => {
+    const asAdmin = await get("/inspections/devices");
+    const asWorker = await get("/inspections/devices", workerToken);
+
+    expect(asAdmin.status).toBe(200);
+    expect(asAdmin.body.map((device: { id: string }) => device.id)).toContain(deviceId);
+    expect(asWorker.body.map((device: { id: string }) => device.id)).toContain(deviceId);
+  });
 });
