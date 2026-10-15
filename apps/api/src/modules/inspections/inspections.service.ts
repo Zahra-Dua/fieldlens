@@ -4,9 +4,11 @@
 import { prisma } from "../../database/prisma";
 import { Prisma } from "../../generated/prisma/client";
 import { AppError } from "../../shared/errors/AppError";
+import { publishInspectionCreated } from "./inspection-events";
 import type {
   CreateInspectionsInput,
   ListInspectionsQuery,
+  ReviewQueueQuery,
   StatsInspectionsQuery,
 } from "./inspections.schemas";
 
@@ -51,7 +53,7 @@ const SORT_COLUMNS = {
 function buildConditions(
   userId: string,
   role: Role,
-  filters: ScopeFilters
+  filters: ScopeFilters,
 ): Prisma.Sql[] {
   const conditions: Prisma.Sql[] = [];
 
@@ -63,19 +65,27 @@ function buildConditions(
     conditions.push(Prisma.sql`i."deviceId" = ${filters.deviceId}`);
   }
   if (filters.dateFrom !== undefined) {
-    conditions.push(Prisma.sql`i."capturedAt" >= ${filters.dateFrom}::timestamp`);
+    conditions.push(
+      Prisma.sql`i."capturedAt" >= ${filters.dateFrom}::timestamp`,
+    );
   }
   if (filters.dateTo !== undefined) {
     conditions.push(Prisma.sql`i."capturedAt" <= ${filters.dateTo}::timestamp`);
   }
   if (filters.label !== undefined) {
-    conditions.push(Prisma.sql`p."predictedClass" = ${filters.label}::"WasteClass"`);
+    conditions.push(
+      Prisma.sql`p."predictedClass" = ${filters.label}::"WasteClass"`,
+    );
   }
   if (filters.minConfidence !== undefined) {
-    conditions.push(Prisma.sql`p.confidence >= ${filters.minConfidence}::numeric`);
+    conditions.push(
+      Prisma.sql`p.confidence >= ${filters.minConfidence}::numeric`,
+    );
   }
   if (filters.maxConfidence !== undefined) {
-    conditions.push(Prisma.sql`p.confidence <= ${filters.maxConfidence}::numeric`);
+    conditions.push(
+      Prisma.sql`p.confidence <= ${filters.maxConfidence}::numeric`,
+    );
   }
 
   return conditions;
@@ -101,7 +111,7 @@ export class InspectionsService {
   // retrying a partially-failed batch won't end up with half of it synced
   // twice.
   async createBulk(userId: string, input: CreateInspectionsInput) {
-    return prisma.$transaction(
+    const result = await prisma.$transaction(
       input.inspections.map((item) =>
         prisma.inspection.upsert({
           where: { id: item.id },
@@ -137,9 +147,11 @@ export class InspectionsService {
             syncedAt: item.status === "SYNCED" ? new Date() : undefined,
           },
           include: { predictions: true },
-        })
-      )
+        }),
+      ),
     );
+    publishInspectionCreated();
+    return result;
   }
 
   // ── List — paginated, filtered, sorted ────────────────────────
@@ -151,10 +163,10 @@ export class InspectionsService {
   async list(
     requestingUserId: string,
     requestingUserRole: Role,
-    query: ListInspectionsQuery
+    query: ListInspectionsQuery,
   ) {
     const where = whereClause(
-      buildConditions(requestingUserId, requestingUserRole, query)
+      buildConditions(requestingUserId, requestingUserRole, query),
     );
     const orderColumn = SORT_COLUMNS[query.sortBy];
     const direction =
@@ -204,7 +216,7 @@ export class InspectionsService {
   async stats(
     requestingUserId: string,
     requestingUserRole: Role,
-    query: StatsInspectionsQuery
+    query: StatsInspectionsQuery,
   ) {
     const base = buildConditions(requestingUserId, requestingUserRole, query);
     // The class and confidence charts only make sense for rows that have a
@@ -242,7 +254,7 @@ export class InspectionsService {
     // Always return all 10 buckets, even the empty ones, so the chart
     // does not have to fill gaps.
     const countByBucket = new Map(
-      histogramRows.map((row) => [row.bucket, row.count])
+      histogramRows.map((row) => [row.bucket, row.count]),
     );
     const confidenceHistogram = Array.from({ length: 10 }, (_, bucket) => ({
       from: bucket / 10,
@@ -254,7 +266,10 @@ export class InspectionsService {
     const low = lowRows[0]?.low ?? 0;
 
     return {
-      overTime: overTimeRows.map((row) => ({ date: row.day, count: row.count })),
+      overTime: overTimeRows.map((row) => ({
+        date: row.day,
+        count: row.count,
+      })),
       distribution: distributionRows,
       confidenceHistogram,
       lowConfidence: {
@@ -266,11 +281,149 @@ export class InspectionsService {
     };
   }
 
+  async listReviewQueue(
+    requestingUserId: string,
+    requestingUserRole: Role,
+    query: ReviewQueueQuery,
+  ) {
+    const inspectionFilters: Prisma.InspectionWhereInput = {};
+
+    if (query.deviceId) {
+      inspectionFilters.deviceId = query.deviceId;
+    }
+    if (requestingUserRole !== "ADMIN") {
+      inspectionFilters.userId = requestingUserId;
+    }
+    if (query.dateFrom || query.dateTo) {
+      inspectionFilters.capturedAt = {};
+      if (query.dateFrom) {
+        inspectionFilters.capturedAt.gte = query.dateFrom;
+      }
+      if (query.dateTo) {
+        inspectionFilters.capturedAt.lte = query.dateTo;
+      }
+    }
+
+    const confidenceFilter: Prisma.DecimalFilter = {};
+    if (query.minConfidence !== undefined) {
+      confidenceFilter.gte = query.minConfidence;
+    }
+    if (query.maxConfidence !== undefined) {
+      confidenceFilter.lte = query.maxConfidence;
+    }
+
+    const result = await prisma.prediction.findMany({
+      where: {
+        correctedClass: { not: null },
+        ...(query.originalLabel ? { predictedClass: query.originalLabel } : {}),
+        ...(query.correctedLabel
+          ? { correctedClass: query.correctedLabel }
+          : {}),
+        ...(Object.keys(confidenceFilter).length > 0
+          ? { confidence: confidenceFilter }
+          : {}),
+        ...(Object.keys(inspectionFilters).length > 0
+          ? { inspection: inspectionFilters }
+          : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: {
+        inspection: {
+          include: {
+            device: {
+              select: { id: true, name: true, platform: true },
+            },
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    return result.map((row) => ({
+      id: row.id,
+      inspectionId: row.inspectionId,
+      predictedClass: row.predictedClass,
+      correctedClass: row.correctedClass!,
+      confidence: Number(row.confidence),
+      isAccepted: row.isAccepted ?? null,
+      capturedAt: row.inspection.capturedAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+      device: {
+        id: row.inspection.device.id,
+        name: row.inspection.device.name,
+        platform: row.inspection.device.platform,
+      },
+      user: {
+        id: row.inspection.user.id,
+        name: row.inspection.user.name,
+        email: row.inspection.user.email,
+      },
+    }));
+  }
+
+  async exportReviewQueueCsv(
+    requestingUserId: string,
+    requestingUserRole: Role,
+    query: ReviewQueueQuery,
+  ) {
+    const rows = await this.listReviewQueue(
+      requestingUserId,
+      requestingUserRole,
+      query,
+    );
+    const columns = [
+      "predictionId",
+      "inspectionId",
+      "capturedAt",
+      "predictedClass",
+      "correctedClass",
+      "confidence",
+      "reviewStatus",
+      "deviceName",
+      "devicePlatform",
+      "deviceId",
+      "userName",
+      "userEmail",
+    ] as const;
+    const csvCell = (value: string | number) => {
+      let text = String(value);
+      if (/^[\s]*[=+\-@]/.test(text)) {
+        text = `'${text}`;
+      }
+      return `"${text.replaceAll('"', '""')}"`;
+    };
+    const records = rows.map((row) => [
+      row.id,
+      row.inspectionId,
+      row.capturedAt,
+      row.predictedClass,
+      row.correctedClass,
+      row.confidence,
+      row.isAccepted === null
+        ? "Pending"
+        : row.isAccepted
+          ? "Accepted"
+          : "Rejected",
+      row.device.name ?? "",
+      row.device.platform,
+      row.device.id,
+      row.user.name,
+      row.user.email,
+    ]);
+
+    return [
+      columns.map(csvCell).join(","),
+      ...records.map((record) => record.map(csvCell).join(",")),
+    ].join("\r\n");
+  }
+
   // ── Get one ────────────────────────────────────────────────────
   async getById(
     id: string,
     requestingUserId: string,
-    requestingUserRole: "ADMIN" | "FIELD_WORKER"
+    requestingUserRole: "ADMIN" | "FIELD_WORKER",
   ) {
     const inspection = await prisma.inspection.findUnique({
       where: { id },
@@ -284,13 +437,20 @@ export class InspectionsService {
     if (!inspection) {
       throw new AppError("INSPECTION_NOT_FOUND", "Inspection not found", 404);
     }
-    if (requestingUserRole !== "ADMIN" && inspection.userId !== requestingUserId) {
-      throw new AppError("FORBIDDEN", "You do not have access to this inspection", 403);
+    if (
+      requestingUserRole !== "ADMIN" &&
+      inspection.userId !== requestingUserId
+    ) {
+      throw new AppError(
+        "FORBIDDEN",
+        "You do not have access to this inspection",
+        403,
+      );
     }
 
     return inspection;
   }
-    // ── Devices for the dashboard's device filter ─────────────────
+  // ── Devices for the dashboard's device filter ─────────────────
   // Admins see every device; a field worker sees only their own.
   async listDevices(requestingUserId: string, requestingUserRole: Role) {
     return prisma.device.findMany({

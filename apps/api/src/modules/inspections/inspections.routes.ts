@@ -6,6 +6,9 @@ import {
   deleteInspectionHandler,
   statsInspectionsHandler,
   listInspectionDevicesHandler,
+  listReviewQueueHandler,
+  exportReviewQueueHandler,
+  inspectionEventsHandler,
 } from "./inspections.controller";
 import { requireAuth, requireRole } from "../../shared/middleware/auth";
 
@@ -13,33 +16,48 @@ export async function inspectionsRoutes(app: FastifyInstance) {
   app.post(
     "/inspections",
     { preHandler: [requireAuth] },
-    createInspectionsHandler
+    createInspectionsHandler,
   );
 
   app.get(
     "/inspections",
     { preHandler: [requireAuth] },
-    listInspectionsHandler
+    listInspectionsHandler,
   );
-    app.get(
+  app.get(
     "/inspections/stats",
     { preHandler: [requireAuth] },
-    statsInspectionsHandler
+    statsInspectionsHandler,
   );
   app.get(
     "/inspections/devices",
     { preHandler: [requireAuth] },
-    listInspectionDevicesHandler
+    listInspectionDevicesHandler,
+  );
+  app.get(
+    "/inspections/events",
+    { preHandler: [requireAuth, requireRole("ADMIN")] },
+    inspectionEventsHandler,
+  );
+  app.get(
+    "/inspections/review-queue/export",
+    { preHandler: [requireAuth] },
+    exportReviewQueueHandler,
+  );
+  app.get(
+    "/inspections/review-queue",
+    { preHandler: [requireAuth] },
+    listReviewQueueHandler,
   );
   app.get<{ Params: { id: string } }>(
     "/inspections/:id",
     { preHandler: [requireAuth] },
-    getInspectionHandler
+    getInspectionHandler,
   );
 
   app.delete<{ Params: { id: string } }>(
     "/inspections/:id",
     { preHandler: [requireAuth, requireRole("ADMIN")] },
-    deleteInspectionHandler
+    deleteInspectionHandler,
   );
 }

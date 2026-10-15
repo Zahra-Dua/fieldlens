@@ -12,7 +12,9 @@ const inspectionInputSchema = z
   .object({
     id: z.string().uuid("id must be a valid UUID (client-generated)"),
     deviceId: z.string().uuid(),
-    status: z.enum(["PENDING", "SYNCING", "SYNCED", "FAILED"]).default("SYNCED"),
+    status: z
+      .enum(["PENDING", "SYNCING", "SYNCED", "FAILED"])
+      .default("SYNCED"),
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
     capturedAt: z.coerce.date(),
@@ -65,7 +67,13 @@ export const createInspectionsSchema = z
 
 // Query params for GET /inspections — all optional, all filters combine
 // with AND when present.
-const WASTE_CLASSES = ["PLASTIC", "GLASS", "METAL", "PAPER", "ORGANIC"] as const;
+const WASTE_CLASSES = [
+  "PLASTIC",
+  "GLASS",
+  "METAL",
+  "PAPER",
+  "ORGANIC",
+] as const;
 
 export const listInspectionsQuerySchema = z
   .object({
@@ -77,7 +85,9 @@ export const listInspectionsQuerySchema = z
     dateTo: z.coerce.date().optional(),
     minConfidence: z.coerce.number().min(0).max(1).optional(),
     maxConfidence: z.coerce.number().min(0).max(1).optional(),
-    sortBy: z.enum(["capturedAt", "confidence", "label", "status"]).default("capturedAt"),
+    sortBy: z
+      .enum(["capturedAt", "confidence", "label", "status"])
+      .default("capturedAt"),
     sortOrder: z.enum(["asc", "desc"]).default("desc"),
   })
   .strict()
@@ -86,7 +96,7 @@ export const listInspectionsQuerySchema = z
       q.minConfidence === undefined ||
       q.maxConfidence === undefined ||
       q.minConfidence <= q.maxConfidence,
-    { message: "minConfidence must not be above maxConfidence" }
+    { message: "minConfidence must not be above maxConfidence" },
   );
 
 // Same filters as the list, without paging and sorting.
@@ -105,3 +115,30 @@ export type StatsInspectionsQuery = z.infer<typeof statsInspectionsQuerySchema>;
 
 export type CreateInspectionsInput = z.infer<typeof createInspectionsSchema>;
 export type ListInspectionsQuery = z.infer<typeof listInspectionsQuerySchema>;
+export const reviewQueueQuerySchema = z
+  .object({
+    deviceId: z.string().uuid().optional(),
+    dateFrom: z.coerce.date().optional(),
+    dateTo: z.coerce.date().optional(),
+    originalLabel: z.enum(WASTE_CLASSES).optional(),
+    correctedLabel: z.enum(WASTE_CLASSES).optional(),
+    minConfidence: z.coerce.number().min(0).max(1).optional(),
+    maxConfidence: z.coerce.number().min(0).max(1).optional(),
+  })
+  .strict()
+  .refine(
+    (q) =>
+      q.minConfidence === undefined ||
+      q.maxConfidence === undefined ||
+      q.minConfidence <= q.maxConfidence,
+    { message: "minConfidence must not be above maxConfidence" },
+  )
+  .refine(
+    (q) =>
+      q.dateFrom === undefined ||
+      q.dateTo === undefined ||
+      q.dateFrom <= q.dateTo,
+    { message: "dateFrom must not be after dateTo" },
+  );
+
+export type ReviewQueueQuery = z.infer<typeof reviewQueueQuerySchema>;
