@@ -10,9 +10,28 @@ import { signAccessToken } from "../src/shared/utils/jwt";
 // Every request below filters by this device, so other data in the
 // database (seed data, other tests) cannot change the results.
 const FIXTURE = [
-  { id: "55555555-5555-4555-8555-555555555551", label: "PLASTIC", confidence: 0.5, day: "2026-09-01" },
-  { id: "55555555-5555-4555-8555-555555555552", label: "GLASS", confidence: 0.7, day: "2026-09-02" },
-  { id: "55555555-5555-4555-8555-555555555553", label: "PLASTIC", confidence: 0.95, day: "2026-09-03" },
+  {
+    id: "55555555-5555-4555-8555-555555555551",
+    label: "PLASTIC",
+    confidence: 0.5,
+    day: "2026-09-01",
+    correctedClass: "GLASS",
+    isAccepted: false,
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555552",
+    label: "GLASS",
+    confidence: 0.7,
+    day: "2026-09-02",
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555553",
+    label: "PLASTIC",
+    confidence: 0.95,
+    day: "2026-09-03",
+    correctedClass: "METAL",
+    isAccepted: true,
+  },
 ] as const;
 
 interface ListRow {
@@ -35,12 +54,22 @@ describe("Inspections dashboard queries", () => {
     const admin = await prisma.user.upsert({
       where: { email: emails[0]! },
       update: {},
-      create: { name: "Dash Admin", email: emails[0]!, passwordHash, role: "ADMIN" },
+      create: {
+        name: "Dash Admin",
+        email: emails[0]!,
+        passwordHash,
+        role: "ADMIN",
+      },
     });
     const worker = await prisma.user.upsert({
       where: { email: emails[1]! },
       update: {},
-      create: { name: "Dash Worker", email: emails[1]!, passwordHash, role: "FIELD_WORKER" },
+      create: {
+        name: "Dash Worker",
+        email: emails[1]!,
+        passwordHash,
+        role: "FIELD_WORKER",
+      },
     });
 
     const device = await prisma.device.create({
@@ -66,6 +95,12 @@ describe("Inspections dashboard queries", () => {
               predictedClass: item.label,
               confidence: item.confidence,
               inferenceSource: "ON_DEVICE",
+              ...("correctedClass" in item
+                ? {
+                    correctedClass: item.correctedClass,
+                    isAccepted: item.isAccepted,
+                  }
+                : {}),
             },
           },
         },
@@ -84,7 +119,9 @@ describe("Inspections dashboard queries", () => {
   });
 
   function get(path: string, token = adminToken) {
-    return supertest(app.server).get(path).set("Authorization", `Bearer ${token}`);
+    return supertest(app.server)
+      .get(path)
+      .set("Authorization", `Bearer ${token}`);
   }
 
   function confidences(rows: ListRow[]): number[] {
@@ -92,8 +129,12 @@ describe("Inspections dashboard queries", () => {
   }
 
   it("sorts by confidence in both directions", async () => {
-    const asc = await get(`/inspections?deviceId=${deviceId}&sortBy=confidence&sortOrder=asc`);
-    const desc = await get(`/inspections?deviceId=${deviceId}&sortBy=confidence&sortOrder=desc`);
+    const asc = await get(
+      `/inspections?deviceId=${deviceId}&sortBy=confidence&sortOrder=asc`,
+    );
+    const desc = await get(
+      `/inspections?deviceId=${deviceId}&sortBy=confidence&sortOrder=desc`,
+    );
 
     expect(asc.status).toBe(200);
     expect(confidences(asc.body.data)).toEqual([0.5, 0.7, 0.95]);
@@ -112,7 +153,7 @@ describe("Inspections dashboard queries", () => {
 
   it("filters by a confidence range in the database", async () => {
     const response = await get(
-      `/inspections?deviceId=${deviceId}&minConfidence=0.6&maxConfidence=0.9`
+      `/inspections?deviceId=${deviceId}&minConfidence=0.6&maxConfidence=0.9`,
     );
 
     expect(response.body.total).toBe(1);
@@ -120,9 +161,11 @@ describe("Inspections dashboard queries", () => {
   });
 
   it("filters by label and by date range", async () => {
-    const byLabel = await get(`/inspections?deviceId=${deviceId}&label=PLASTIC`);
+    const byLabel = await get(
+      `/inspections?deviceId=${deviceId}&label=PLASTIC`,
+    );
     const byDate = await get(
-      `/inspections?deviceId=${deviceId}&dateFrom=2026-09-02T00:00:00.000Z&dateTo=2026-09-02T23:59:59.999Z`
+      `/inspections?deviceId=${deviceId}&dateFrom=2026-09-02T00:00:00.000Z&dateTo=2026-09-02T23:59:59.999Z`,
     );
 
     expect(byLabel.body.total).toBe(2);
@@ -143,7 +186,9 @@ describe("Inspections dashboard queries", () => {
   });
 
   it("rejects a confidence range where min is above max", async () => {
-    const response = await get(`/inspections?minConfidence=0.9&maxConfidence=0.1`);
+    const response = await get(
+      `/inspections?minConfidence=0.9&maxConfidence=0.1`,
+    );
 
     expect(response.status).toBe(400);
   });
@@ -175,17 +220,67 @@ describe("Inspections dashboard queries", () => {
   });
 
   it("lets a field worker see only their own numbers", async () => {
-    const response = await get(`/inspections/stats?deviceId=${deviceId}`, workerToken);
+    const response = await get(
+      `/inspections/stats?deviceId=${deviceId}`,
+      workerToken,
+    );
 
     expect(response.status).toBe(200);
     expect(response.body.lowConfidence.total).toBe(3);
   });
-    it("lists the devices for the device filter", async () => {
+
+  it("filters the review queue on the server by label, confidence, device, and date", async () => {
+    const response = await get(
+      `/inspections/review-queue?deviceId=${deviceId}&originalLabel=PLASTIC&correctedLabel=METAL&minConfidence=0.9&dateFrom=2026-09-03T00:00:00.000Z&dateTo=2026-09-03T23:59:59.999Z`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0]).toMatchObject({
+      inspectionId: FIXTURE[2].id,
+      predictedClass: "PLASTIC",
+      correctedClass: "METAL",
+      confidence: 0.95,
+      isAccepted: true,
+      device: { id: deviceId },
+    });
+  });
+
+  it("exports the filtered review queue as CSV", async () => {
+    const response = await get(
+      `/inspections/review-queue/export?deviceId=${deviceId}&correctedLabel=GLASS`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/csv");
+    expect(response.headers["content-disposition"]).toContain(
+      "fieldlens-review-queue.csv",
+    );
+    expect(response.text).toContain(
+      '"predictionId","inspectionId","capturedAt","predictedClass","correctedClass"',
+    );
+    expect(response.text).toContain('"PLASTIC","GLASS","0.5","Rejected"');
+    expect(response.text).not.toContain('"PLASTIC","METAL"');
+  });
+
+  it("rejects a review queue date range where the start is after the end", async () => {
+    const response = await get(
+      "/inspections/review-queue?dateFrom=2026-09-04T00:00:00.000Z&dateTo=2026-09-03T00:00:00.000Z",
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("lists the devices for the device filter", async () => {
     const asAdmin = await get("/inspections/devices");
     const asWorker = await get("/inspections/devices", workerToken);
 
     expect(asAdmin.status).toBe(200);
-    expect(asAdmin.body.map((device: { id: string }) => device.id)).toContain(deviceId);
-    expect(asWorker.body.map((device: { id: string }) => device.id)).toContain(deviceId);
+    expect(asAdmin.body.map((device: { id: string }) => device.id)).toContain(
+      deviceId,
+    );
+    expect(asWorker.body.map((device: { id: string }) => device.id)).toContain(
+      deviceId,
+    );
   });
 });

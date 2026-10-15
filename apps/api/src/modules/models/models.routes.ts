@@ -1,7 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import { requireAuth } from "../../shared/middleware/auth";
-import { downloadModelHandler, getLatestModelHandler } from "./models.controller";
-
+import { requireAuth, requireRole } from "../../shared/middleware/auth";
+import multipart from "@fastify/multipart";
+import {
+  downloadModelHandler,
+  getLatestModelHandler,
+  listModelVersionsHandler,
+  promoteModelVersionHandler,
+  stageModelVersionHandler,
+  uploadModelVersionHandler,
+} from "./models.controller";
 const modelMetadataJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -47,6 +54,7 @@ const errorJsonSchema = {
 } as const;
 
 export async function modelsRoutes(app: FastifyInstance) {
+  await app.register(multipart);
   app.get<{ Querystring: { platform: "android" | "ios" } }>(
     "/models/latest",
     
@@ -100,4 +108,24 @@ export async function modelsRoutes(app: FastifyInstance) {
     },
     downloadModelHandler,
   );
+  app.get(
+  "/models",
+  { preHandler: [requireAuth, requireRole("ADMIN")] },
+  listModelVersionsHandler,
+);
+app.post<{ Params: { version: string } }>(
+  "/models/:version/promote",
+  { preHandler: [requireAuth, requireRole("ADMIN")] },
+  promoteModelVersionHandler,
+);
+app.post(
+  "/models",
+  { preHandler: [requireAuth, requireRole("ADMIN")] },
+  uploadModelVersionHandler,
+);
+app.post<{ Params: { version: string } }>(
+  "/models/:version/stage",
+  { preHandler: [requireAuth, requireRole("ADMIN")] },
+  stageModelVersionHandler,
+);
 }

@@ -1,11 +1,20 @@
 import type { FastifyInstance } from "fastify";
-import { registerDeviceHandler } from "./devices.controller";
+import {
+  listDevicesFleetHandler,
+  registerDeviceHandler,
+} from "./devices.controller";
 import { requireAuth } from "../../shared/middleware/auth";
 
 export async function devicesRoutes(app: FastifyInstance) {
   app.post(
     "/devices/register",
     { preHandler: [requireAuth] },
-    registerDeviceHandler
+    registerDeviceHandler,
+  );
+
+  app.get(
+    "/devices",
+    { preHandler: [requireAuth] },
+    listDevicesFleetHandler,
   );
 }

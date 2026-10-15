@@ -7,6 +7,9 @@ import InspectionsPage from "./pages/InspectionsPage";
 import AppLayout from "./components/AppLayout";
 import InspectionDetailPage from "./pages/InspectionDetailPage";
 import DashboardPage from "./pages/DashboardPage";
+import ModelsPage from "./pages/ModelsPage";
+import DeviceFleetPage from "./pages/DeviceFleetPage";
+import ReviewQueuePage from "./pages/ReviewQueuePage";
 
 function LoginRoute() {
   const { isAuthenticated, isRestoring } = useAuth();
@@ -37,6 +40,9 @@ function AppRoutes() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/inspections" element={<InspectionsPage />} />
           <Route path="/inspections/:id" element={<InspectionDetailPage />} />
+          <Route path="/models" element={<ModelsPage />} />
+          <Route path="/devices" element={<DeviceFleetPage />} />
+          <Route path="/review-queue" element={<ReviewQueuePage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
