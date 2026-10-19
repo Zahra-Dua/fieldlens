@@ -1,31 +1,125 @@
+# Whole FieldLens system:  cp .env.example .env  &&  docker compose up --build
+#
+#   web   http://localhost:5173   (admin dashboard)
+#   api   http://localhost:3000   (Swagger: /docs)
+#   ml    http://localhost:8000   (FastAPI docs: /docs)
+#   minio http://localhost:9001   (storage console)
+#
+# For daily development you can still start only the backing services:
+#   docker compose up -d db minio
+
 services:
   db:
     image: postgres:16
-    container_name: fieldlens-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - fieldlens_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio:
     image: bitnamilegacy/minio:2025.7.23-debian-12-r5
-    container_name: fieldlens-minio
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BROWSER: "on"
     ports:
-      - "9000:9000"   # S3-compatible API
-      - "9001:9001"   # Web console (browse buckets in a browser)
+      - "${MINIO_API_PORT:-9000}:9000"   # S3-compatible API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001" # web console
     volumes:
       - fieldlens_minio_data:/bitnami/minio/data
+    healthcheck:
+      # "is the S3 port open?" (uses bash only, no extra tools needed)
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9000'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ml:
+    build: ./apps/ml
+    restart: unless-stopped
+    ports:
+      - "${ML_PORT:-8000}:8000"
+    volumes:
+      - fieldlens_ml_data:/data   # uploaded model files + registry survive restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+
+  # One-shot job: apply database migrations, then exit. It uses the "build"
+  # stage of the API Dockerfile because that stage has the Prisma CLI.
+  # Also used for seeding:  docker compose run --rm migrate npx tsx prisma/seed.ts
+  migrate:
+    build:
+      context: ./apps/api
+      target: build
+    command: ["npx", "prisma", "migrate", "deploy"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: ./apps/api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-fieldlens-images}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      ML_SERVICE_URL: http://ml:8000
+      WEB_ORIGINS: ${WEB_ORIGINS:-http://localhost:5173}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ml:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 15s
+      retries: 5
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        # The BROWSER calls the API, so this must be an address the browser
+        # can reach (localhost), not the internal name "api".
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-5173}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   fieldlens_postgres_data:
   fieldlens_minio_data:
+  fieldlens_ml_data:

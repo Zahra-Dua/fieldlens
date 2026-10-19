@@ -1,0 +1,221 @@
+name: CI
+
+# Runs on every pull request (and on main after a merge).
+# Each app only runs when its own files changed (path filters), so a
+# Flutter-only change does not rebuild the API, ML or web.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels the older, still-running run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------
+  # 1. Which parts of the repo changed?
+  # ---------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      ml: ${{ steps.filter.outputs.ml }}
+      web: ${{ steps.filter.outputs.web }}
+      app: ${{ steps.filter.outputs.app }}
+      compose: ${{ steps.filter.outputs.compose }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - '.github/workflows/ci.yml'
+            ml:
+              - 'apps/ml/**'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'apps/web/**'
+              - '.github/workflows/ci.yml'
+            app:
+              - 'apps/app/**'
+              - '.github/workflows/ci.yml'
+            compose:
+              - 'docker-compose.yml'
+              - '.env.example'
+              - '.github/workflows/ci.yml'
+
+  # ---------------------------------------------------------------
+  # 2. API: lint + test (real Postgres and MinIO) + build + Docker image
+  # ---------------------------------------------------------------
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fieldlens
+          POSTGRES_PASSWORD: change_me_locally
+          POSTGRES_DB: fieldlens_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fieldlens -d fieldlens_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      minio:
+        image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+        env:
+          MINIO_ROOT_USER: fieldlens_minio
+          MINIO_ROOT_PASSWORD: change_me_locally_minio
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "bash -c '</dev/tcp/127.0.0.1/9000'"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # Only used for "prisma generate" and "migrate deploy" below.
+      DATABASE_URL: postgresql://fieldlens:change_me_locally@localhost:5432/fieldlens_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      # The tests read .env.test (it is not committed, the example is).
+      - run: cp .env.test.example .env.test
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+  # ---------------------------------------------------------------
+  # 3. ML service: tests + Docker image
+  # ---------------------------------------------------------------
+  ml:
+    needs: changes
+    if: needs.changes.outputs.ml == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: pip install uv
+      - run: uv sync --frozen
+      # There is no linter set up for the ML code yet, so at least check
+      # that every file compiles.
+      - run: uv run --frozen python -m compileall -q app
+      - run: uv run --frozen pytest
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/ml
+          push: false
+          cache-from: type=gha,scope=ml
+          cache-to: type=gha,scope=ml,mode=max
+
+  # ---------------------------------------------------------------
+  # 4. Web dashboard: format + lint + test + build + Docker image
+  # ---------------------------------------------------------------
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+  # ---------------------------------------------------------------
+  # 5. Flutter app: analyze + test + debug APK
+  # ---------------------------------------------------------------
+  app:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      # env/dev.json is not committed, so pass the value directly.
+      - run: flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3000
+
+  # ---------------------------------------------------------------
+  # 6. docker-compose.yml is valid and .env.example is complete
+  # ---------------------------------------------------------------
+  compose:
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose config --quiet
+
+  # ---------------------------------------------------------------
+  # One final job. In GitHub branch protection, require only THIS one:
+  # it fails if any job failed, and passes when jobs were skipped.
+  # ---------------------------------------------------------------
+  ci-ok:
+    if: always()
+    needs: [changes, api, ml, web, app, compose]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "All required jobs passed (skipped ones are fine)."

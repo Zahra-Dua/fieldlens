@@ -21,13 +21,7 @@ import { getErrorMessage } from "../lib/apiClient";
 const filters = parseFilters(new URLSearchParams());
 const CLASS_COLORS = ["#2563eb", "#16a34a", "#eab308", "#f97316", "#8b5cf6"];
 
-function ChartCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="mb-4 text-base font-semibold text-slate-900">{title}</h2>
@@ -147,48 +141,48 @@ export default function DashboardPage() {
 
         <ChartCard title="Class distribution">
           {hasDistribution ? (
-  <div className="flex h-full flex-col">
-    <div className="min-h-0 flex-1">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={stats.distribution}
-            dataKey="count"
-            nameKey="label"
-            cx="50%"
-            cy="50%"
-            outerRadius="72%"
-          >
-            {stats.distribution.map((entry) => (
-              <Cell
-                key={entry.label}
-                fill={CLASS_COLORS[WASTE_CLASSES.indexOf(entry.label)]}
-              />
-            ))}
-          </Pie>
-          <Tooltip />
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-    <ul
-      aria-label="Class counts"
-      className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-600"
-    >
-      {stats.distribution.map((entry) => (
-        <li key={entry.label} className="flex items-center gap-1">
-          <span
-            aria-hidden="true"
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: CLASS_COLORS[WASTE_CLASSES.indexOf(entry.label)] }}
-          />
-          {entry.label}: {entry.count}
-        </li>
-      ))}
-    </ul>
-  </div>
-) : (
-  <ChartEmpty message="No predicted classes to show yet." />
-)}
+            <div className="flex h-full flex-col">
+              <div className="min-h-0 flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={stats.distribution}
+                      dataKey="count"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius="72%"
+                    >
+                      {stats.distribution.map((entry) => (
+                        <Cell
+                          key={entry.label}
+                          fill={CLASS_COLORS[WASTE_CLASSES.indexOf(entry.label)]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul
+                aria-label="Class counts"
+                className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-600"
+              >
+                {stats.distribution.map((entry) => (
+                  <li key={entry.label} className="flex items-center gap-1">
+                    <span
+                      aria-hidden="true"
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: CLASS_COLORS[WASTE_CLASSES.indexOf(entry.label)] }}
+                    />
+                    {entry.label}: {entry.count}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <ChartEmpty message="No predicted classes to show yet." />
+          )}
         </ChartCard>
 
         <ChartCard title="Confidence distribution">

@@ -115,9 +115,7 @@ export default function DeviceFleetPage() {
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {formatLastSeen(device.lastSeenAt)}
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {device.inspectionCount}
-                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">{device.inspectionCount}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[device.status]}`}

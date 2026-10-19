@@ -95,7 +95,7 @@ export class DevicesService {
     return devices.map((device): DeviceFleetRow => {
       const lastSeen = device.lastSeenAt ? new Date(device.lastSeenAt).getTime() : null;
 
-      let status: DeviceFleetStatus = "UNKNOWN";
+      let status: DeviceFleetStatus;
       if (lastSeen === null) {
         status = "UNKNOWN";
       } else if (now - lastSeen > staleMs * 4) {

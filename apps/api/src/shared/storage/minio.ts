@@ -1,4 +1,13 @@
 import { Client as MinioClient } from "minio";
+// Credentials must come from the environment. No default value, so a
+// forgotten variable fails loudly instead of using a weak password.
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} must be set`);
+  }
+  return value;
+}
 
 const endpoint = process.env.MINIO_ENDPOINT ?? "http://localhost:9000";
 const bucket = process.env.MINIO_BUCKET ?? "fieldlens-images";
@@ -9,8 +18,8 @@ export const minioClient = new MinioClient({
   endPoint: parsed.hostname,
   port: parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80,
   useSSL: parsed.protocol === "https:",
-  accessKey: process.env.MINIO_ROOT_USER ?? "fieldlens_minio",
-  secretKey: process.env.MINIO_ROOT_PASSWORD ?? "change_me_locally_minio",
+  accessKey: requireEnv("MINIO_ROOT_USER"),
+  secretKey: requireEnv("MINIO_ROOT_PASSWORD"),
 });
 
 export async function ensureBucket() {
