@@ -1,7 +1,7 @@
 # ADR 0003: Use tsx instead of ts-node-dev for local dev
 
 **Date:** 2026-09-22
-**Status:** Pending
+**Status:** Accepted
 
 ## Context
 
