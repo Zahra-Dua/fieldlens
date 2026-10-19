@@ -24,11 +24,7 @@ function StatusBadge({ status }: { status: ModelVersion["status"] }) {
         ? "bg-amber-100 text-amber-800"
         : "bg-slate-100 text-slate-700";
 
-  return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${color}`}>
-      {status}
-    </span>
-  );
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${color}`}>{status}</span>;
 }
 
 function ModelsSkeleton() {
@@ -70,11 +66,11 @@ export default function ModelsPage() {
     },
   });
   const stageMutation = useMutation({
-  mutationFn: stageModelVersion,
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: MODELS_QUERY_KEY });
-  },
-});
+    mutationFn: stageModelVersion,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: MODELS_QUERY_KEY });
+    },
+  });
 
   function togglePlatform(platform: ModelPlatform) {
     setPlatforms((current) =>
@@ -192,9 +188,7 @@ export default function ModelsPage() {
               onChange={(event) => setSelectedFile(event.currentTarget.files?.[0] ?? null)}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
-            <span className="text-xs font-normal text-slate-500">
-              Maximum file size: 50 MB.
-            </span>
+            <span className="text-xs font-normal text-slate-500">Maximum file size: 50 MB.</span>
           </label>
 
           {uploadMutation.isError && (
@@ -211,11 +205,7 @@ export default function ModelsPage() {
 
           <button
             type="submit"
-            disabled={
-              uploadMutation.isPending ||
-              platforms.length === 0 ||
-              selectedFile === null
-            }
+            disabled={uploadMutation.isPending || platforms.length === 0 || selectedFile === null}
             className="w-fit rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
           >
             {uploadMutation.isPending ? "Uploading..." : "Upload model"}
@@ -267,9 +257,7 @@ export default function ModelsPage() {
               <tbody className="divide-y divide-slate-100">
                 {models.map((model) => (
                   <tr key={model.version}>
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {model.version}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{model.version}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={model.status} />
                     </td>
@@ -277,39 +265,37 @@ export default function ModelsPage() {
                     <td className="px-4 py-3">{(model.accuracy * 100).toFixed(2)}%</td>
                     <td className="px-4 py-3">{model.quantization}</td>
                     <td className="px-4 py-3">{formatBytes(model.size_bytes)}</td>
-                    <td className="px-4 py-3">
-                      {new Date(model.created_at).toLocaleDateString()}
-                    </td>
+                    <td className="px-4 py-3">{new Date(model.created_at).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
                       {model.status === "draft" && (
-  <button
-    type="button"
-    disabled={stageMutation.isPending}
-    onClick={() => {
-      stageMutation.reset();
-      stageMutation.mutate(model.version);
-    }}
-    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-  >
-    {stageMutation.isPending && stageMutation.variables === model.version
-      ? "Staging..."
-      : "Stage"}
-  </button>
-)}
+                        <button
+                          type="button"
+                          disabled={stageMutation.isPending}
+                          onClick={() => {
+                            stageMutation.reset();
+                            stageMutation.mutate(model.version);
+                          }}
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {stageMutation.isPending && stageMutation.variables === model.version
+                            ? "Staging..."
+                            : "Stage"}
+                        </button>
+                      )}
 
-{model.status === "staged" && (
-  <button
-    type="button"
-    disabled={promoteMutation.isPending}
-    onClick={() => {
-      promoteMutation.reset();
-      setPromotionTarget(model.version);
-    }}
-    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-  >
-    Promote
-  </button>
-)}
+                      {model.status === "staged" && (
+                        <button
+                          type="button"
+                          disabled={promoteMutation.isPending}
+                          onClick={() => {
+                            promoteMutation.reset();
+                            setPromotionTarget(model.version);
+                          }}
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Promote
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -347,8 +333,8 @@ export default function ModelsPage() {
               Promote model {promotionTarget}?
             </h2>
             <p id="promote-description" className="mt-2 text-sm text-slate-600">
-              This will make it the production model. The current production version
-              will be moved back to staged.
+              This will make it the production model. The current production version will be moved
+              back to staged.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button

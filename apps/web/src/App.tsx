@@ -29,7 +29,6 @@ function LoginRoute() {
   return <LoginPage />;
 }
 
-
 function AppRoutes() {
   return (
     <Routes>
