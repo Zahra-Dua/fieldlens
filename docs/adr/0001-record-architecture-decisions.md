@@ -1,7 +1,7 @@
 # ADR 0001: Record architecture decisions
 
 **Date:** 2026-09-21
-**Status:** Pending
+**Status:** Accepted
 
 ## Context
 

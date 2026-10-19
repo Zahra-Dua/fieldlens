@@ -1,4 +1,4 @@
-# ADR: Production model is float16, run with XNNPACK
+# ADR 0014: Production model is float16, run with XNNPACK
 
 **Status:** Accepted
 **Date:** 2026-10-09

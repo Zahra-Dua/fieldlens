@@ -1,4 +1,4 @@
-# ADR 0001: Where the web dashboard keeps its login tokens
+# ADR 0015: Where the web dashboard keeps its login tokens
 
 - **Status:** Accepted
 - **Date:** 2026-10-12
