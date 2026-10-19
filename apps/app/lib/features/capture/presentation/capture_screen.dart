@@ -7,12 +7,15 @@ import 'package:fieldlens_app/features/auth/presentation/auth_notifier.dart';
 import 'package:fieldlens_app/features/capture/presentation/camera_controller_notifier.dart';
 import 'package:fieldlens_app/features/capture/presentation/captured_photo_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Live camera preview, with permission handling and lifecycle-aware
-/// pause/resume. Capturing a photo pushes [CapturedPhotoScreen] for
-/// preview/retake — this widget's own job is just getting a live camera.
+/// pause/resume. Capturing a photo, or choosing one from the gallery, pushes
+/// [CapturedPhotoScreen] for preview/retake — this widget's own job is just
+/// getting a live camera and a way to pick an existing image.
 class CaptureScreen extends ConsumerStatefulWidget {
   /// Creates a [CaptureScreen].
   const new({super.key});
@@ -23,6 +26,8 @@ class CaptureScreen extends ConsumerStatefulWidget {
 
 class _CaptureScreenState extends ConsumerState<CaptureScreen>
     with WidgetsBindingObserver {
+  final _picker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +68,25 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
     );
   }
 
+  /// Lets the user pick an existing photo (a test image, for example).
+  /// This needs no camera permission, so it also works on an emulator.
+  Future<void> _pickFromGallery() async {
+    try {
+      final file = await _picker.pickImage(source: ImageSource.gallery);
+      if (file == null || !mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => CapturedPhotoScreen(imagePath: file.path),
+        ),
+      );
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open the gallery: ${error.message}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(cameraControllerProvider);
@@ -97,6 +121,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
           message: 'FieldLens needs camera access to inspect items.',
           buttonLabel: 'Allow camera access',
           onPressed: notifier.requestPermission,
+          onGallery: () => unawaited(_pickFromGallery()),
         ),
         CapturePermissionPermanentlyDenied() => _PermissionPrompt(
           message:
@@ -104,11 +129,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
               'continue.',
           buttonLabel: 'Open Settings',
           onPressed: notifier.openSettings,
+          onGallery: () => unawaited(_pickFromGallery()),
         ),
         CaptureError(:final message) => _PermissionPrompt(
           message: message,
           buttonLabel: 'Try again',
           onPressed: notifier.resume,
+          onGallery: () => unawaited(_pickFromGallery()),
         ),
         CaptureReady(:final controller) => Stack(
           fit: StackFit.expand,
@@ -118,11 +145,23 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
               bottom: 32,
               left: 0,
               right: 0,
-              child: Center(
-                child: FloatingActionButton.large(
-                  onPressed: () => unawaited(_capture(controller)),
-                  child: const Icon(Icons.camera_alt),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Choose from gallery',
+                    iconSize: 32,
+                    onPressed: () => unawaited(_pickFromGallery()),
+                    icon: const Icon(Icons.photo_library),
+                  ),
+                  FloatingActionButton.large(
+                    onPressed: () => unawaited(_capture(controller)),
+                    child: const Icon(Icons.camera_alt),
+                  ),
+                  // Same width as the gallery button, so the shutter button
+                  // stays in the middle.
+                  const SizedBox(width: 48),
+                ],
               ),
             ),
           ],
@@ -137,11 +176,13 @@ class _PermissionPrompt extends StatelessWidget {
     required this.message,
     required this.buttonLabel,
     required this.onPressed,
+    required this.onGallery,
   });
 
   final String message;
   final String buttonLabel;
   final Future<void> Function() onPressed;
+  final VoidCallback onGallery;
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +197,12 @@ class _PermissionPrompt extends StatelessWidget {
             FilledButton(
               onPressed: () => unawaited(onPressed()),
               child: Text(buttonLabel),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onGallery,
+              icon: const Icon(Icons.photo_library),
+              label: const Text('Choose from gallery'),
             ),
           ],
         ),

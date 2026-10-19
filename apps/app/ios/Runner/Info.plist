@@ -30,6 +30,8 @@
 	<string>FieldLens needs the camera to photograph items for inspection.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>FieldLens can record where an inspection was taken. This is optional.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>FieldLens lets you pick an existing photo to inspect.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
