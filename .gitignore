@@ -28,6 +28,7 @@ apps/ml/data/
 *.tflite
 # The app bundles its model; uploaded models in apps/ml/storage stay ignored.
 !apps/app/assets/models/*.tflite
+!apps/ml/models/fieldlens_float32.tflite
 *.pt
 *.onnx
 
